@@ -1,0 +1,168 @@
+{
+  "title": "westonwhat.com",
+  "name": "WESTONWHAT.COM",
+  "tagline": "Weston's Hideout And Terminal",
+  "subtitle": "Weston's personal website.",
+  "description": "A personal corner of the old internet: an arcade, a photo archive, a logbook, and a spinning chrome skull.",
+  "url": "https://westonwhat.com",
+  "author": "Weston",
+  "language": "en",
+  "timezone": "America/Denver",
+  "spiritualEpoch": "1999-01-01",
+  "systemLine": "WESTONWHAT.COM",
+  "footer": "no cookies, no trackers, no frameworks",
+  "nav": [
+    {
+      "section": "home",
+      "path": "/",
+      "label": "MAINFRAME",
+      "icon": "monitor",
+      "blurb": "The front door."
+    },
+    {
+      "section": "arcade",
+      "path": "/arcade/",
+      "label": "ARCADE",
+      "icon": "joystick",
+      "blurb": "Games you can play right in the browser."
+    },
+    {
+      "section": "photos",
+      "path": "/photos/",
+      "label": "PHOTOS",
+      "icon": "camera",
+      "blurb": "The image archive, sorted into albums."
+    },
+    {
+      "section": "log",
+      "path": "/log/",
+      "label": "LOGBOOK",
+      "icon": "notebook",
+      "blurb": "Thoughts, notes and longer posts."
+    },
+    {
+      "section": "about",
+      "path": "/about/",
+      "label": "FILES",
+      "icon": "folder",
+      "blurb": "Downloads: save files and more."
+    },
+    {
+      "section": "links",
+      "path": "/links/",
+      "label": "LINKS",
+      "icon": "globe",
+      "blurb": "Other corners of the web worth a visit."
+    },
+    {
+      "section": "shop",
+      "path": "/shop/",
+      "label": "SHOP",
+      "icon": "star",
+      "blurb": "Coming later."
+    }
+  ],
+  "marquee": [
+    "WELCOME TO WESTONWHAT.COM"
+  ],
+  "messages": [],
+  "status": [
+    {
+      "label": "TRACKERS",
+      "value": "NONE",
+      "led": "green"
+    },
+    {
+      "label": "COOKIES",
+      "value": "NONE",
+      "led": "green"
+    }
+  ],
+  "buttons": [
+    {
+      "img": "/img/buttons/westonwhat.gif",
+      "alt": "westonwhat.com",
+      "href": "/"
+    },
+    {
+      "img": "/img/buttons/b-sunglasses-cat.gif",
+      "alt": "Manga face with sunglasses"
+    },
+    {
+      "img": "/img/buttons/b-viewed-1024x768.gif",
+      "alt": "Viewed in 1024x768, 16 bit color"
+    },
+    {
+      "img": "/img/buttons/b-blizzard.gif",
+      "alt": "Blizzard"
+    },
+    {
+      "img": "/img/buttons/b-blue-mouse.gif",
+      "alt": "Blue mouse"
+    },
+    {
+      "img": "/img/buttons/b-b164.gif",
+      "alt": "b164"
+    },
+    {
+      "img": "/img/buttons/b-anime-eyes.gif",
+      "alt": "Anime eyes"
+    },
+    {
+      "img": "/img/buttons/b-abandoned-hope.gif",
+      "alt": "Abandoned Hope"
+    },
+    {
+      "img": "/img/buttons/b-rukia.gif",
+      "alt": "Rukia"
+    },
+    {
+      "img": "/img/buttons/b-chrome.gif",
+      "alt": "Chrome: same shit, different asshole"
+    },
+    {
+      "img": "/img/buttons/b-color.gif",
+      "alt": "Color"
+    },
+    {
+      "img": "/img/buttons/b-copy-that-floppy.gif",
+      "alt": "Copy that floppy"
+    },
+    {
+      "img": "/img/buttons/b-crackit.gif",
+      "alt": "Crackit"
+    },
+    {
+      "img": "/img/buttons/b-copyscape.gif",
+      "alt": "Protected by Copyscape, do not copy"
+    },
+    {
+      "img": "/img/buttons/b-counter-strike.gif",
+      "alt": "Counter-Strike"
+    },
+    {
+      "img": "/img/buttons/b-cyber-rot.gif",
+      "alt": "Cyber rot"
+    },
+    {
+      "img": "/img/buttons/b-acab.gif",
+      "alt": "A.C.A.B."
+    },
+    {
+      "img": "/img/buttons/b-best-viewed-4-3.gif",
+      "alt": "Best viewed in 4:3"
+    },
+    {
+      "img": "/img/buttons/b-amiga-friendly.gif",
+      "alt": "Amiga friendly"
+    },
+    {
+      "img": "/img/buttons/b-small-icon.gif",
+      "alt": "Computer icon"
+    }
+  ],
+  "photos": {
+    "stripLocation": true,
+    "maxMegabytes": 4
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Trash Sculpture",
+  "description": "",
+  "sort": "name",
+  "cover": "02-yellow-green-creature.jpg",
+  "captions": {
+    "01-three-robots.jpg": {
+      "alt": "Black and white photo of three small, grimy metallic robot figures standing on round bases, with paint bottles blurred behind them"
+    },
+    "02-yellow-green-creature.jpg": {
+      "alt": "A small creature with a yellow-green shell head with white spots, an open mouth and a red tongue, on bendy black wire arms and legs, standing on a black base in front of a pink background"
+    },
+    "03-yellow-creature-red-tongue.jpg": {
+      "alt": "A rough, textured yellow creature with a white open mouth and a dripping red tongue, on thin black wire legs on a dark blue base, with moss and a teal background"
+    },
+    "04-mossy-one-eye.jpg": {
+      "alt": "A mossy, egg-shaped creature with one large round black opening on its front, thin wire legs and a curling wire antenna, against a teal background above green moss"
+    },
+    "05-blue-creature.jpg": {
+      "alt": "A small bright blue creature with a spotted head and a pink tongue, black wire arms looping over two blue round bases, on green moss with yellow flowers"
+    }
+  }
+}

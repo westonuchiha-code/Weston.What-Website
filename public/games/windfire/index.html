@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Wind Fire: wisp test</title>
+<style>
+  :root { --c0:#181028; --c1:#3a2c5c; --c2:#8878c8; --c3:#f8f8e8; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  html, body { margin:0; background:var(--c0); color:var(--c3); font-family: "Courier New", monospace; overscroll-behavior: none; }
+  #app { max-width: 430px; margin: 0 auto; padding: 6px 8px 14px; touch-action: none; }
+  #top { display:flex; justify-content:space-between; align-items:center; margin:2px 0 6px; }
+  #stats { font-size:16px; letter-spacing:1px; display:flex; justify-content:space-between; width:100%; }
+  #screen { border:4px solid var(--c2); line-height:0; background:#a8d070; }
+  canvas#cv { width:100%; height:auto; display:block; image-rendering: pixelated; }
+  #ctrl { display:grid; grid-template-columns: 1fr 1fr; align-items:center; margin-top:12px; height:180px; position:relative; }
+  #stick { width:150px; height:150px; border-radius:50%; background:#2a2048; border:3px solid var(--c2); position:relative; margin-left:6px; touch-action:none; }
+  #knob { position:absolute; left:43px; top:43px; width:64px; height:64px; border-radius:50%; background:#5a4a98; border:3px solid var(--c3); pointer-events:none; }
+  .btns { position:relative; height:150px; }
+  .btn { position:absolute; border-radius:50%; background:#8b1e3f; border:3px solid #c04a6b; color:#fff; font-weight:bold; font-size:18px; display:flex; align-items:center; justify-content:center; touch-action:none; }
+  .btn.on { background:#e0305f; }
+  #bA { width:74px; height:74px; right:6px; top:22px; }
+  #bB { width:74px; height:74px; right:90px; top:52px; }
+  #sys { position:absolute; left:0; right:0; bottom:-26px; display:flex; justify-content:center; gap:26px; }
+  .pill { width:78px; height:26px; border-radius:14px; background:#2a2048; border:2px solid var(--c2); color:var(--c2); font-size:11px; display:flex; align-items:center; justify-content:center; letter-spacing:1px; touch-action:none; }
+  .pill.on { background:var(--c2); color:var(--c0); }
+  #help { font-size:11px; color:var(--c2); margin-top:40px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="stats"><div id="time">LV 1</div><div id="burned">BURNED 0</div></div>
+  </div>
+  <div id="screen"><canvas id="cv"></canvas></div>
+  <div id="ctrl">
+    <div id="stick"><div id="knob"></div></div>
+    <div class="btns">
+      <div class="btn" id="bB" data-btn="B">B</div>
+      <div class="btn" id="bA" data-btn="A">A</div>
+    </div>
+    <div id="sys">
+      <div class="pill" data-btn="SELECT">SELECT</div>
+      <div class="pill" data-btn="START">START</div>
+    </div>
+  </div>
+  <div id="help">STICK: fly the wisp (push gently to drift, hard to speed up). Fly through flames to carry embers to new buildings. Burning buildings fills your heat bar; at each level pick an upgrade (stick up/down, A). The run ends when the fire dies out. Ash earned buys permanent upgrades between runs. B: dash (once you pick the Dash upgrade). START: begin / pause. SELECT: new city. Keyboard: arrows or WASD, Z or Space = A, Enter = START, Shift = SELECT.</div>
+</div>
+<script>
+// Wind Fire engine: huge generated city, heat/fuel/embers, wisp wind. Pure logic, no DOM.
+(function (root) {
+  const ROAD = 0, HOUSE = 1, APT = 2, TREE = 3, TANK = 4, WATER = 5, LOT = 6;
+  const MAT = {
+    [HOUSE]: { name: 'House', fuel: 55, ign: 1.0, burn: 11, emit: 3.0 },
+    [APT]:   { name: 'Apartments', fuel: 130, ign: 1.5, burn: 12, emit: 4.2 },
+    [TREE]:  { name: 'Trees', fuel: 35, ign: 0.7, burn: 9, emit: 2.2 },
+    [TANK]:  { name: 'Gas tank', fuel: 18, ign: 1.1, burn: 18, emit: 3.5 },
+  };
+  const R = 4, VMAX0 = 9, ACC0 = 26;
+  const P = { pow: 1.8, cool: 1.0, emit: 1.2, ember: 0.55, windGain: 3.2, burn: 1.0, speed: 0.6, life: 1.2, couple: 10, attract: 4, spawn: 35, sig: 3.5, follow: 1.4, maxEmb: 22 };
+
+  function rngf(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash2(a, b, s) { let h = (a * 374761393 + b * 668265263 + s * 2246822519) | 0; h = (h ^ (h >> 13)) * 1274126177 | 0; return ((h ^ (h >> 16)) >>> 0) / 4294967296; }
+
+  // district recipes: cumulative thresholds for house, apartment, tree, tank (the rest is empty lot)
+  const DISTRICTS = [
+    { name: 'old town',   w: 0.28, house: 0.93, apt: 0.02, tree: 0.0, tank: 0.005 },
+    { name: 'suburb',     w: 0.28, house: 0.55, apt: 0.0,  tree: 0.08, tank: 0.0 },
+    { name: 'downtown',   w: 0.12, house: 0.08, apt: 0.85, tree: 0.0, tank: 0.0 },
+    { name: 'industrial', w: 0.10, house: 0.15, apt: 0.35, tree: 0.0, tank: 0.14 },
+    { name: 'forest',     w: 0.12, house: 0.04, apt: 0.0,  tree: 0.75, tank: 0.0 },
+    { name: 'farmland',   w: 0.10, house: 0.12, apt: 0.0,  tree: 0.10, tank: 0.0 },
+  ];
+  function pickDistrict(u) { let a = 0; for (let k = 0; k < DISTRICTS.length; k++) { a += DISTRICTS[k].w; if (u < a) return k; } return 0; }
+
+  function generateWorld(seed, W = 300, H = 300) {
+    const r = rngf(seed), BS = 4;
+    const type = new Uint8Array(W * H); // default ROAD
+    const at = (x, y) => y * W + x;
+    const lines = (len) => { const out = []; let p = 0; const w0 = 1 + Math.floor(r() * 3); out.push({ s: 0, w: w0 }); p = w0; while (p < len) { const s = p; p += BS; const w = r() < 0.2 ? 1 : (r() < 0.75 ? 2 : 3); out.push({ s: p, w, blockStart: s }); p += w; } return out; };
+    const xl = lines(W), yl = lines(H);
+    for (let by = 1; by < yl.length; by++) for (let bx = 1; bx < xl.length; bx++) {
+      const x0 = xl[bx - 1].s + xl[bx - 1].w, y0 = yl[by - 1].s + yl[by - 1].w;
+      const d = DISTRICTS[pickDistrict(hash2(Math.floor(bx / 5), Math.floor(by / 5), seed))];
+      const sub = hash2(bx, by, seed + 7) < 0.1 ? 0.35 : 1; // some blocks thin out
+      for (let y = y0; y < y0 + BS && y < H; y++) for (let x = x0; x < x0 + BS && x < W; x++) {
+        const q = r(), s = q / sub; let t = LOT;
+        if (s < d.house) t = HOUSE; else if (s < d.house + d.apt) t = APT; else if (s < d.house + d.apt + d.tree) t = TREE;
+        if (t === HOUSE && r() < d.tank) t = TANK;
+        else if (t === LOT && d.tank > 0.1 && r() < d.tank * 0.5) t = TANK;
+        type[at(x, y)] = t;
+      }
+    }
+    // rivers: a few along road bands, with bridges
+    for (let k = 0; k < 3; k++) {
+      const yb = yl[3 + Math.floor(r() * (yl.length - 6))], xb = xl[3 + Math.floor(r() * (xl.length - 6))];
+      for (let x = 0; x < W; x++) if (type[at(x, yb.s)] === ROAD && x % 13 !== 0) type[at(x, yb.s)] = WATER;
+      for (let y = 0; y < H; y++) if (type[at(xb.s, y)] === ROAD && y % 13 !== 0) type[at(xb.s, y)] = WATER;
+    }
+    // start: a house near the middle
+    let best = -1, bd = 1e9;
+    const cx = W / 2 + (r() - 0.5) * 40, cy = H / 2 + (r() - 0.5) * 40;
+    for (let i = 0; i < W * H; i++) { if (type[i] !== HOUSE) continue; const x = i % W, y = (i / W) | 0, d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (d2 < bd) { bd = d2; best = i; } }
+    return { W, H, type, start: best, seed };
+  }
+
+  const VMAXS = VMAX0;
+  class Fire {
+    constructor(world, seed, mods) {
+      this.C = world; this.W = world.W; this.H = world.H; this.type = world.type;
+      const n = this.W * this.H;
+      this.mod = Object.assign({ emberLife: 1, follow: 1, sig: 0, emit: 1, spawn: 1, maxEmb: 0, burn: 1, speed: 1, ign: 1, boom: 0, grip: 0, whip: 0, glide: 0, dash: 0 }, mods || {});
+      this.dashCd = 0; this.dashT = 0;
+      this.heat = new Float32Array(n); this.fuel = new Float32Array(n);
+      this.inten = new Float32Array(n); this.state = new Uint8Array(n);
+      for (let i = 0; i < n; i++) if (MAT[this.type[i]]) this.fuel[i] = MAT[this.type[i]].fuel;
+      this.rand = rngf((seed || 1) * 7919 + world.seed);
+      const sx = (world.start % this.W) + 0.5, sy = ((world.start / this.W) | 0) + 0.5;
+      this.wisp = { x: Math.max(1, sx - 2.5), y: sy, vx: 0, vy: 0, trail: [], tt: 0 };
+      this.embers = []; this.t = 0; this.booms = [];
+      this.burning = []; this.warm = []; this.warmFlag = new Uint8Array(n);
+      this.burnedB = 0; this.lit = false;
+      this.isB = new Uint8Array(n); this.total = 0;
+      for (let i = 0; i < n; i++) { const t = this.type[i]; if (t === HOUSE || t === APT || t === TANK) { this.isB[i] = 1; this.total++; } }
+      const KS = 2 * R + 1;
+      this.kw = new Float32Array(KS * KS); this.kx = new Float32Array(KS * KS); this.ky = new Float32Array(KS * KS);
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+        const d2 = dx * dx + dy * dy, idx = (dy + R) * KS + (dx + R);
+        if ((dx || dy) && d2 <= R * R + 1) { this.kw[idx] = 1 / Math.pow(1 + d2, P.pow); const d = Math.sqrt(d2); this.kx[idx] = dx / d; this.ky[idx] = dy / d; }
+      }
+      this.wx = 0; this.wy = 0; this.wg = 0;
+    }
+    flam(i) { return !!MAT[this.type[i]]; }
+    ignite(i) {
+      if (this.state[i] !== 0 || !MAT[this.type[i]]) return;
+      this.state[i] = 1; this.inten[i] = 0.15; this.burning.push(i); this.lit = true;
+      if (this.isB[i]) this.burnedB++;
+    }
+    burningCount() { return this.burning.length; }
+    burnedPct() { return this.total ? this.burnedB / this.total : 0; }
+    over() { return this.lit && this.burning.length === 0 && this.embers.length === 0; }
+    wAt(x, y) {
+      const w = this.wisp, dx = x - w.x, dy = y - w.y, sg = P.sig + this.mod.sig, g = Math.exp(-(dx * dx + dy * dy) / (2 * sg * sg));
+      const vm = VMAXS * this.mod.speed; this.wx = w.vx / vm * g; this.wy = w.vy / vm * g; this.wg = g;
+    }
+    spawnEmber(x, y, vx, vy, life, heat, follow) {
+      if (this.embers.length >= P.maxEmb + this.mod.maxEmb) return;
+      this.embers.push({ x, y, vx, vy, life, heat, age: 0, follow });
+    }
+    heatCell(j, amount) {
+      this.heat[j] += amount;
+      if (!this.warmFlag[j]) { this.warmFlag[j] = 1; this.warm.push(j); }
+      if (this.heat[j] >= MAT[this.type[j]].ign * this.mod.ign) this.ignite(j);
+    }
+    step(dt, input) {
+      const { W, H, type, heat, fuel, inten, state, wisp, mod, warm, warmFlag } = this;
+      const sdt = dt * P.speed, vmax = VMAXS * mod.speed;
+      this.booms = [];
+      // ---- wisp flight ----
+      const [ix, iy] = input.dir || [0, 0];
+      const il = Math.hypot(ix, iy), kk = il > 1 ? 1 / il : 1;
+      if (this.dashCd > 0) this.dashCd -= dt;
+      if (this.dashT > 0) this.dashT -= dt;
+      if (input.dash && mod.dash > 0 && this.dashCd <= 0) { // dash: a short burst along the stick, or the way you are already moving
+        let dx = ix, dy = iy, m = Math.hypot(dx, dy);
+        if (m < 0.1) { dx = wisp.vx; dy = wisp.vy; m = Math.hypot(dx, dy); }
+        if (m > 0.05) { wisp.vx = dx / m * vmax * 1.7; wisp.vy = dy / m * vmax * 1.7; this.dashT = 0.25; this.dashCd = 3.2 / (1 + 0.3 * (mod.dash - 1)); this.dashed = true; }
+      }
+      wisp.vx += ix * kk * ACC0 * mod.speed * dt; wisp.vy += iy * kk * ACC0 * mod.speed * dt;
+      if (mod.grip > 0 && il > 0.05) { // grip: steer the velocity toward the stick without losing speed
+        const spd = Math.hypot(wisp.vx, wisp.vy);
+        if (spd > 0.5) {
+          const om = 1.2 * Math.pow(1.45, mod.grip - 1) * Math.min(1, il);
+          let d = Math.atan2(iy, ix) - Math.atan2(wisp.vy, wisp.vx);
+          while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+          const s = Math.max(-om * dt, Math.min(om * dt, d)), c = Math.cos(s), sn = Math.sin(s);
+          const nx = wisp.vx * c - wisp.vy * sn, ny = wisp.vx * sn + wisp.vy * c; wisp.vx = nx; wisp.vy = ny;
+        }
+      }
+      const drag = Math.exp(-1.6 / (1 + 0.25 * mod.glide) * dt); wisp.vx *= drag; wisp.vy *= drag;
+      const sp = Math.hypot(wisp.vx, wisp.vy), cap = this.dashT > 0 ? vmax * 1.8 : (il > 0.05 ? vmax * Math.min(1, il / 0.9) : vmax);
+      if (sp > cap) { const k = Math.max(cap / sp, Math.exp(-6 * dt)); wisp.vx *= k; wisp.vy *= k; }
+      wisp.x += wisp.vx * dt; wisp.y += wisp.vy * dt;
+      if (wisp.x < 0.3) { wisp.x = 0.3; wisp.vx = Math.abs(wisp.vx) * 0.3; } if (wisp.x > W - 0.3) { wisp.x = W - 0.3; wisp.vx = -Math.abs(wisp.vx) * 0.3; }
+      if (wisp.y < 0.3) { wisp.y = 0.3; wisp.vy = Math.abs(wisp.vy) * 0.3; } if (wisp.y > H - 0.3) { wisp.y = H - 0.3; wisp.vy = -Math.abs(wisp.vy) * 0.3; }
+      wisp.tt += dt; if (wisp.tt >= 0.05) { wisp.tt = 0; wisp.trail.push([wisp.x, wisp.y]); if (wisp.trail.length > 16) wisp.trail.shift(); }
+      // ---- heat: cool the warm cells, then every flame heats its surroundings (pushed by the wisp's wind) ----
+      const cool = Math.exp(-P.cool * sdt);
+      for (let k = 0; k < warm.length; k++) heat[warm[k]] *= cool;
+      const KS = 2 * R + 1, kw = this.kw, kx = this.kx, ky = this.ky, pend = [];
+      const burning = this.burning;
+      for (let b = 0; b < burning.length; b++) {
+        const i = burning[b], m = MAT[type[i]];
+        const x0 = i % W, y0 = (i / W) | 0;
+        this.wAt(x0 + 0.5, y0 + 0.5);
+        const wx = this.wx, wy = this.wy, base = P.emit * mod.emit * m.emit * inten[i] * sdt;
+        for (let dy = -R; dy <= R; dy++) {
+          const y = y0 + dy; if (y < 0 || y >= H) continue;
+          for (let dx = -R; dx <= R; dx++) {
+            const idx = (dy + R) * KS + (dx + R), w = kw[idx]; if (w === 0) continue;
+            const x = x0 + dx; if (x < 0 || x >= W) continue;
+            const j = y * W + x;
+            if (state[j] !== 0 || !MAT[type[j]]) continue;
+            const f = Math.min(3.2, Math.max(0.1, 1 + P.windGain * (kx[idx] * wx + ky[idx] * wy)));
+            heat[j] += base * f * w;
+            if (!warmFlag[j]) { warmFlag[j] = 1; warm.push(j); }
+            if (heat[j] >= MAT[type[j]].ign * mod.ign) pend.push(j);
+          }
+        }
+      }
+      // ---- burning: grow, consume fuel, throw embers near the wisp's wind, burn out ----
+      const alive = [], booms = [];
+      for (let b = 0; b < burning.length; b++) {
+        const i = burning[b], m = MAT[type[i]];
+        inten[i] += (1 - inten[i]) * Math.min(1, sdt * 1.1);
+        fuel[i] -= m.burn * P.burn * mod.burn * inten[i] * sdt;
+        const cx = (i % W) + 0.5, cy = ((i / W) | 0) + 0.5;
+        this.wAt(cx, cy); const wx = this.wx, wy = this.wy, mag = Math.hypot(wx, wy);
+        const p = inten[i] * dt * P.ember * mag * P.spawn * mod.spawn;
+        if (this.rand() < p) this.spawnEmber(cx + (this.rand() - 0.5) * 0.6, cy + (this.rand() - 0.5) * 0.6, wx * vmax + (this.rand() - 0.5) * 1.6, wy * vmax + (this.rand() - 0.5) * 1.6, (1.3 + this.rand() * 0.9) * P.life * mod.emberLife, 1.3, P.follow * mod.follow);
+        if (fuel[i] <= 0) { state[i] = 2; inten[i] = 0; if (type[i] === TANK) booms.push(i); } else alive.push(i);
+      }
+      this.burning = alive;
+      for (const j of pend) this.ignite(j);
+      for (const b of booms) this.explode(b);
+      // ---- embers ride the wisp's wind for a moment, then land ----
+      const embers = this.embers;
+      for (let k = embers.length - 1; k >= 0; k--) {
+        const e = embers[k];
+        this.wAt(e.x, e.y); const wx = this.wx, wy = this.wy, g0 = this.wg;
+        e.age += dt;
+        const g = g0 * Math.max(0, 1 - e.age / e.follow);
+        const k2 = Math.min(1, dt * P.couple / (1 + 0.5 * mod.whip) * g), tv = vmax * (1 + 0.12 * mod.whip);
+        e.vx += (wx * tv - e.vx) * k2; e.vy += (wy * tv - e.vy) * k2;
+        e.vx += (wisp.x - e.x) * P.attract * g * dt; e.vy += (wisp.y - e.y) * P.attract * g * dt;
+        const dr = Math.exp(-1.8 * dt * (1 - g) / (1 + 0.4 * mod.whip)); e.vx *= dr; e.vy *= dr;
+        e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
+        if (e.life <= 0) {
+          const cx = Math.floor(e.x), cy = Math.floor(e.y);
+          if (cx >= 0 && cy >= 0 && cx < W && cy < H) { const j = cy * W + cx; if (state[j] === 0 && MAT[type[j]]) this.heatCell(j, e.heat * (0.7 + this.rand() * 0.6)); }
+          embers.splice(k, 1);
+        }
+      }
+      // ---- drop cooled or already-burning cells from the warm list ----
+      let w2 = 0; for (let k = 0; k < warm.length; k++) { const j = warm[k]; if (state[j] === 0 && heat[j] > 0.02) warm[w2++] = j; else warmFlag[j] = 0; } warm.length = w2;
+      this.t += dt;
+    }
+    explode(i) {
+      const { W, H, type, state } = this, rad = 4 + this.mod.boom;
+      const x0 = i % W, y0 = (i / W) | 0;
+      this.booms.push(i);
+      for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+        const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        const j = y * W + x;
+        if (state[j] === 0 && MAT[type[j]]) this.heatCell(j, 2.2 / (1 + dx * dx + dy * dy) * 1.6);
+      }
+      for (let k = 0; k < 14; k++) {
+        const a = this.rand() * Math.PI * 2, s = 2 + this.rand() * 4;
+        this.spawnEmber(x0 + 0.5, y0 + 0.5, Math.cos(a) * s, Math.sin(a) * s, 0.6 + this.rand() * 0.9, 1.6, 0.2);
+      }
+    }
+  }
+
+  const api = { P, generateWorld, generateCity: generateWorld, Fire, MAT, ROAD, HOUSE, APT, TREE, TANK, WATER, LOT, DISTRICTS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.WindFire = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+const { generateCity, Fire, MAT, ROAD, HOUSE, APT, TREE, TANK, WATER, LOT } = WindFire;
+const T = 16, VW = 18, VH = 18, CLOCK = 150, DT = 0.05;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+cv.width = VW * T; cv.height = VH * T;
+const $ = (id) => document.getElementById(id);
+
+// ---------- pixel art (sprites are 16x16; each uses its own 4 colors: 0..3, '.' transparent) ----------
+const ART = {
+  house: ["................","......0000......","....00111100....","...0111111110...","..011111111110..",".01111111111110.","0000000000000000",".02222222222220.",".02333222233320.",".02333222233320.",".02222200222220.",".02222200222220.",".02222200222220.",".02222200222220.",".00000000000000.","................"],
+  apt:   ["................",".00000000000000.",".01111111111110.",".01111111111110.",".01331133113310.",".01331133113310.",".01111111111110.",".01331133113310.",".01331133113310.",".01111111111110.",".01331133113310.",".01331133113310.",".01111100111110.",".01111100111110.",".00000000000000.","................"],
+  tree:  ["................",".....000000.....","....01111110....","...0111211110...","..011122111110..",".01111121111110.",".01111111111110.",".01111111111110.",".01111111111110.","..011111111110..","...0111111110...","....00111100....",".......00.......",".......00.......","......0000......","................"],
+  tank:  ["................",".....000000.....","....03333220....","...0333222220...","..033322222210..",".03322222222210.",".02222222222210.",".00000000000000.",".01111133111110.",".01111133111110.",".00000000000000.",".02222222222110.","..022222222110..","...0222221110...","....00000000....","................"],
+};
+const SPAL = {
+  house: ['#40281a', '#d04828', '#f8e8b8', '#68b0f0'],
+  apt:   ['#2c2c48', '#8890b8', '#8890b8', '#f8e878'],
+  tree:  ['#1c3c1c', '#38883c', '#68b850', '#68b850'],
+  tank:  ['#303030', '#d03020', '#e8d040', '#fff8b0'],
+};
+function mk(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); return c; }
+function px(g, col, x, y, w = 1, h = 1) { g.fillStyle = col; g.fillRect(x, y, w, h); }
+function mkSprite(rows, pal) {
+  return mk(T, T, (g) => rows.forEach((row, y) => { if (row.length !== T) throw new Error('sprite row ' + y); for (let x = 0; x < T; x++) { if (row[x] !== '.') px(g, pal[+row[x]], x, y); } }));
+}
+const SPR = {}; for (const k in ART) SPR[k] = mkSprite(ART[k], SPAL[k]);
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >> 13)) * 1274126177 | 0; return (h ^ (h >> 16)) >>> 0; }
+const GROUND = [0, 1, 2, 3].map(v => mk(T, T, (g) => { px(g, '#a8d070', 0, 0, T, T); for (let i = 0; i < 5; i++) { const h = hash(v * 31 + i, 7); px(g, '#8cbc58', h % 15, (h >> 4) % 15, 1, 1); } }));
+function mkRoad(hz, vt) {
+  return mk(T, T, (g) => {
+    px(g, '#b8a888', 0, 0, T, T);
+    if (hz && !vt) { px(g, '#e8e0c8', 1, 7, 5, 2); px(g, '#e8e0c8', 10, 7, 5, 2); px(g, '#908068', 0, 0, T, 1); px(g, '#908068', 0, 15, T, 1); }
+    else if (vt && !hz) { px(g, '#e8e0c8', 7, 1, 2, 5); px(g, '#e8e0c8', 7, 10, 2, 5); px(g, '#908068', 0, 0, 1, T); px(g, '#908068', 15, 0, 1, T); }
+    else { px(g, '#e8e0c8', 6, 6, 4, 4); }
+  });
+}
+const ROADS = { h: mkRoad(true, false), v: mkRoad(false, true), x: mkRoad(true, true) };
+const WATERS = [0, 1].map(f => mk(T, T, (g) => { px(g, '#4880d8', 0, 0, T, T); for (const [wx, wy] of [[1, 3], [9, 7], [3, 11], [11, 14]]) { px(g, '#88b8f8', (wx + f * 3) % 12, wy, 4, 1); px(g, '#2850a8', (wx + f * 3) % 12 + 1, wy + 1, 2, 1); } }));
+const RUBBLE = [0, 1, 2, 3].map(v => mk(T, T, (g) => { px(g, '#a8d070', 0, 0, T, T); px(g, '#585058', 2, 8, 12, 6); px(g, '#282028', 3, 7, 10, 1); for (let i = 0; i < 9; i++) { const h = hash(v * 17 + i, 3); px(g, h % 3 === 0 ? '#a09098' : '#282028', 3 + h % 10, 8 + (h >> 5) % 6, 1 + (h >> 9) % 2, 1); } px(g, '#282028', 4 + v, 4, 1, 4); px(g, '#282028', 10 - v, 5, 1, 3); }));
+// flames are drawn once per variant and reused
+const FLAMES = {};
+function flameSprite(bucket, phase, seedv) {
+  const key = bucket * 100 + phase * 10 + seedv;
+  if (FLAMES[key]) return FLAMES[key];
+  return FLAMES[key] = mk(T, T, (g) => {
+    for (let tg = 0; tg < 3; tg++) {
+      const cx = 3 + tg * 5 + (hash(seedv, tg) % 2), H = 5 + bucket * 2 + (((phase + tg + seedv) % 2) * 2);
+      for (let r = 0; r < H; r++) {
+        const hw = r < H * 0.35 ? 3 : (r < H * 0.65 ? 2 : (r < H * 0.85 ? 1 : 0)), y = 15 - r;
+        for (let dx = -hw; dx <= hw; dx++) px(g, Math.abs(dx) === hw ? '#a02010' : (r < H * 0.55 && Math.abs(dx) <= 1 ? '#ffe060' : '#f06018'), cx + dx, y);
+      }
+      px(g, '#a02010', cx, 15 - H);
+    }
+  });
+}
+const EMBER = mk(6, 6, (g) => { px(g, '#a02010', 1, 0, 4, 6); px(g, '#a02010', 0, 1, 6, 4); px(g, '#f06018', 1, 1, 4, 4); px(g, '#fff8a0', 2, 2, 2, 2); });
+const WISP = [0, 1].map(f => mk(16, 16, (g) => {
+  px(g, '#1888c0', 3, 5, 10, 6); px(g, '#1888c0', 5, 3, 6, 10);
+  px(g, '#ffffff', 4, 5, 8, 6); px(g, '#ffffff', 5, 4, 6, 8);
+  px(g, '#58d0f8', 6, 6, 4, 4);
+  px(g, '#1888c0', f ? 10 : 4, 3, 2, 2);
+}));
+
+// ---------- input ----------
+const pad = { up: false, down: false, left: false, right: false, A: false, B: false, START: false, SELECT: false };
+const KEYMAP = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', z: 'A', ' ': 'A', j: 'A', x: 'B', k: 'B', Enter: 'START', Shift: 'SELECT', Backspace: 'SELECT' };
+function setBtn(name, v) {
+  const was = pad[name]; pad[name] = v;
+  if (v && !was && (name === 'up' || name === 'down')) menuMove(name === 'down' ? 1 : -1);
+  if (v && !was && (name === 'START' || name === 'SELECT' || name === 'A' || name === 'B')) press(name);
+  if (name === 'A') $('bA').classList.toggle('on', v);
+  if (name === 'B') $('bB').classList.toggle('on', v);
+  document.querySelectorAll('.pill').forEach(p => p.classList.toggle('on', pad[p.dataset.btn]));
+}
+window.addEventListener('keydown', (e) => { const b = KEYMAP[e.key] || KEYMAP[e.key.toLowerCase()]; if (!b) return; e.preventDefault(); if (e.repeat) return; setBtn(b, true); });
+window.addEventListener('keyup', (e) => { const b = KEYMAP[e.key] || KEYMAP[e.key.toLowerCase()]; if (!b) return; e.preventDefault(); setBtn(b, false); });
+document.querySelectorAll('[data-btn]').forEach(el => {
+  const b = el.dataset.btn;
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} setBtn(b, true); });
+  const up = () => setBtn(b, false);
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+});
+const stick = $('stick'), knob = $('knob'); let sv = { x: 0, y: 0 }, spid = null;
+function stickUpdate(e) {
+  const r = stick.getBoundingClientRect(), rad = r.width / 2 * 0.7;
+  let dx = (e.clientX - (r.left + r.width / 2)) / rad, dy = (e.clientY - (r.top + r.height / 2)) / rad;
+  const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
+  const mag = Math.min(m, 1); if (mag < 0.12) { dx = 0; dy = 0; }
+  sv = { x: dx, y: dy };
+  knob.style.transform = 'translate(' + (dx * rad * 0.9).toFixed(1) + 'px,' + (dy * rad * 0.9).toFixed(1) + 'px)';
+}
+function stickRelease() { spid = null; sv = { x: 0, y: 0 }; knob.style.transform = ''; }
+stick.addEventListener('pointerdown', (e) => { e.preventDefault(); spid = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch (_) {} stickUpdate(e); });
+stick.addEventListener('pointermove', (e) => { if (e.pointerId === spid) stickUpdate(e); });
+stick.addEventListener('pointerup', (e) => { if (e.pointerId === spid) stickRelease(); });
+stick.addEventListener('pointercancel', (e) => { if (e.pointerId === spid) stickRelease(); });
+
+// ---------- game flow ----------
+const POOL = [
+  { name: 'Long Embers', desc: 'embers last longer', apply: (m) => { m.emberLife *= 1.3; m.follow *= 1.2; } },
+  { name: 'Wide Wind', desc: 'bigger wind around you', apply: (m) => { m.sig += 0.8; } },
+  { name: 'Hot Burn', desc: 'fires heat neighbors more', apply: (m) => { m.emit *= 1.25; } },
+  { name: 'Cinder Spray', desc: 'more embers at once', apply: (m) => { m.spawn *= 1.5; m.maxEmb += 8; } },
+  { name: 'Slow Burn', desc: 'buildings burn longer', apply: (m) => { m.burn *= 0.8; } },
+  { name: 'Swift Wisp', desc: 'faster and nimbler', apply: (m) => { m.speed *= 1.12; } },
+  { name: 'Dry Tinder', desc: 'buildings catch easier', apply: (m) => { m.ign *= 0.87; } },
+  { name: 'Big Blast', desc: 'gas tanks blow bigger', apply: (m) => { m.boom += 1; } },
+  { name: 'Tight Turns', desc: 'turn sharper, keep your speed', stat: 'grip', max: 5, apply: (m) => { m.grip += 1; } },
+  { name: 'Whip', desc: 'embers fling off harder in turns', stat: 'whip', max: 5, apply: (m) => { m.whip += 1; } },
+  { name: 'Glide', desc: 'coast farther, less drag', stat: 'glide', max: 5, apply: (m) => { m.glide += 1; } },
+  { name: 'Dash', desc: 'B: burst of speed (faster each level)', stat: 'dash', max: 5, apply: (m) => { m.dash += 1; } },
+];
+const SHOP = [
+  { id: 'ember', name: 'Ember Craft', desc: 'embers last 10% longer per level', base: 15, apply: (m, l) => { m.emberLife *= 1 + 0.1 * l; } },
+  { id: 'wisp', name: 'Quick Wisp', desc: 'wisp 6% faster per level', base: 15, apply: (m, l) => { m.speed *= 1 + 0.06 * l; } },
+  { id: 'fuel', name: 'Slow Burn', desc: 'buildings burn 8% longer per level', base: 20, apply: (m, l) => { m.burn *= Math.pow(0.92, l); } },
+  { id: 'spark', name: 'Bigger Spark', desc: 'start with 2 more houses lit per level', base: 25 },
+  { id: 'head', name: 'Head Start', desc: 'start with a random upgrade per level', base: 40 },
+  { id: 'nimble', name: 'Nimble Wisp', desc: 'start with +1 Tight Turns per level', base: 30, max: 3, apply: (m, l) => { m.grip += l; } },
+  { id: 'cwhip', name: 'Cinder Whip', desc: 'start with +1 Whip per level', base: 30, max: 3, apply: (m, l) => { m.whip += l; } },
+];
+const MAXL = 5;
+let save = { ash: 0, best: 0, lv: {} };
+try { const s = JSON.parse(localStorage.getItem('windfire_save') || 'null'); if (s) save = Object.assign(save, s); } catch (_) {}
+function persist() { try { localStorage.setItem('windfire_save', JSON.stringify(save)); } catch (_) {} }
+const lvl = (id) => save.lv[id] || 0, cost = (it) => it.base * (lvl(it.id) + 1);
+
+let seed = (Math.random() * 100000) | 0 || 1, city, fire = null, mode = 'hub', acc = 0, last = 0, frame = 0, cam = { x: 0, y: 0 };
+let level = 0, xp = 0, lastB = 0, pending = 0, choices = [], cursor = 0, shopCur = 0, lastRun = null;
+const need = (l) => 8 + l * 5;
+function newCity() { seed = (seed * 1103515245 + 12345) % 2147483647 || 7; city = generateCity(seed); fire = null; cam = camTarget(); }
+function begin() {
+  newCity();
+  fire = new Fire(city, seed); fire.ignite(city.start);
+  for (const it of SHOP) if (it.apply && lvl(it.id)) it.apply(fire.mod, lvl(it.id));
+  const extra = lvl('spark') * 2;
+  if (extra) { // light the nearest houses to the starting one
+    const W = city.W, sx = city.start % W, sy = (city.start / W) | 0, cand = [];
+    for (let dy = -8; dy <= 8; dy++) for (let dx = -8; dx <= 8; dx++) { const x = sx + dx, y = sy + dy; if (x < 0 || y < 0 || x >= W || y >= city.H) continue; const i = y * W + x; if (i !== city.start && city.type[i] === HOUSE) cand.push([dx * dx + dy * dy, i]); }
+    cand.sort((p, q) => p[0] - q[0]); for (let k = 0; k < extra && k < cand.length; k++) fire.ignite(cand[k][1]);
+  }
+  for (let k = 0; k < lvl('head'); k++) { const ok = POOL.filter(p => !p.stat || fire.mod[p.stat] < p.max); ok[Math.floor(Math.random() * ok.length)].apply(fire.mod); }
+  level = 0; xp = 0; lastB = fire.burnedB; pending = 0; lastRun = null; mode = 'play'; cam = camTarget();
+}
+function openChoices() {
+  pending--; const pool = POOL.filter(p => !p.stat || fire.mod[p.stat] < p.max); choices = [];
+  for (let k = 0; k < 3; k++) choices.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  cursor = 0; mode = 'levelup';
+}
+function endRun() {
+  const burned = fire.burnedB, ash = Math.floor(burned / 4), newBest = burned > save.best;
+  save.ash += ash; save.best = Math.max(save.best, burned); persist();
+  lastRun = { burned, ash, newBest, levels: level }; mode = 'hub'; shopCur = 0;
+}
+function press(name) {
+  if (name === 'START') { if (mode === 'hub') begin(); else if (mode === 'play') mode = 'pause'; else if (mode === 'pause') mode = 'play'; }
+  else if (name === 'SELECT') { if (mode === 'hub') newCity(); }
+  else if (name === 'B') { if (mode === 'play') dashQueued = true; }
+  else if (name === 'A') {
+    if (mode === 'levelup') { choices[cursor].apply(fire.mod); mode = 'play'; if (pending > 0) openChoices(); }
+    else if (mode === 'hub') { const it = SHOP[shopCur]; if (lvl(it.id) < (it.max || MAXL) && save.ash >= cost(it)) { save.ash -= cost(it); save.lv[it.id] = lvl(it.id) + 1; persist(); } }
+  }
+}
+let navPrev = { x: 0, y: 0 }, dashQueued = false;
+function menuMove(dy) {
+  if (mode === 'levelup') cursor = (cursor + dy + 3) % 3;
+  else if (mode === 'hub') shopCur = (shopCur + dy + SHOP.length) % SHOP.length;
+}
+function stickNav() { // a flick of the stick moves the menu cursor once
+  const y = Math.hypot(sv.x, sv.y) > 0.6 && Math.abs(sv.y) > 0.5 ? Math.sign(sv.y) : 0;
+  if (y !== 0 && navPrev.y === 0) menuMove(y);
+  navPrev = { x: 0, y };
+}
+function simStep() {
+  let dx = (pad.right ? 1 : 0) - (pad.left ? 1 : 0), dy = (pad.down ? 1 : 0) - (pad.up ? 1 : 0);
+  if (sv.x || sv.y) { dx = sv.x; dy = sv.y; } // the analog stick takes over from the keyboard when held
+  fire.step(DT, { dir: [dx, dy], dash: dashQueued }); dashQueued = false;
+  const nb = fire.burnedB; xp += nb - lastB; lastB = nb;
+  while (xp >= need(level)) { xp -= need(level); level++; pending++; }
+  if (pending > 0) openChoices();
+  else if (fire.over()) endRun();
+}
+
+// ---------- render ----------
+const BCOL = '#181028', FCOL = '#f8f8e8', DCOL = '#a8a0c8';
+function wispPos() { const w = fire.wisp, e = mode === 'play' ? acc : 0; return [w.x + w.vx * e, w.y + w.vy * e]; }
+function camTarget() {
+  let fx, fy;
+  if (fire) { [fx, fy] = wispPos(); } else { fx = (city.start % city.W) + 0.5; fy = ((city.start / city.W) | 0) + 0.5; }
+  return { x: Math.max(0, Math.min(city.W - VW, fx - VW / 2)), y: Math.max(0, Math.min(city.H - VH, fy - VH / 2)) };
+}
+function render() {
+  frame++;
+  const t = camTarget(); cam.x += (t.x - cam.x) * 0.2; cam.y += (t.y - cam.y) * 0.2;
+  const ox = Math.round(cam.x * T), oy = Math.round(cam.y * T);
+  const W = city.W, H = city.H;
+  const x0 = Math.floor(ox / T), y0 = Math.floor(oy / T);
+  const ph = (frame >> 3) & 1;
+  for (let cy = y0; cy <= y0 + VH; cy++) for (let cx = x0; cx <= x0 + VW; cx++) {
+    if (cx < 0 || cy < 0 || cx >= W || cy >= H) continue;
+    const i = cy * W + cx, ty = city.type[i], dx = cx * T - ox, dy = cy * T - oy, st = fire ? fire.state[i] : 0;
+    if (ty === ROAD) {
+      const hz = (cx > 0 && city.type[i - 1] === ROAD) || (cx < W - 1 && city.type[i + 1] === ROAD), vt = (cy > 0 && city.type[i - W] === ROAD) || (cy < H - 1 && city.type[i + W] === ROAD);
+      ctx.drawImage(ROADS[hz && vt ? 'x' : hz ? 'h' : 'v'], dx, dy); continue;
+    }
+    if (ty === WATER) { ctx.drawImage(WATERS[ph], dx, dy); continue; }
+    ctx.drawImage(GROUND[hash(cx, cy) & 3], dx, dy);
+    if (ty === LOT) continue;
+    if (st === 2 || st === 3) { ctx.drawImage(RUBBLE[hash(cx, cy) & 3], dx, dy); continue; }
+    ctx.drawImage(SPR[ty === HOUSE ? 'house' : ty === APT ? 'apt' : ty === TREE ? 'tree' : 'tank'], dx, dy);
+    if (st === 1) ctx.drawImage(flameSprite(Math.min(3, (fire.inten[i] * 4) | 0), ph, hash(cx, cy) % 3), dx, dy);
+    else if (fire) { const r = fire.heat[i] / MAT[ty].ign; if (r > 0.25) { ctx.fillStyle = 'rgba(240,96,24,' + Math.min(0.55, r * 0.5).toFixed(2) + ')'; ctx.fillRect(dx, dy, T, T); } }
+  }
+  if (fire) {
+    const e0 = mode === 'play' ? acc : 0;
+    for (const e of fire.embers) ctx.drawImage(EMBER, Math.round((e.x + e.vx * e0) * T - ox) - 3, Math.round((e.y + e.vy * e0) * T - oy) - 3);
+    for (const b of fire.booms) { const bx = (b % W) * T - ox, by = ((b / W) | 0) * T - oy; ctx.strokeStyle = '#ffe060'; ctx.lineWidth = 2; ctx.strokeRect(bx - 4 * T, by - 4 * T, 9 * T, 9 * T); }
+    const w = fire.wisp, tr = w.trail;
+    for (let k = 0; k < tr.length; k++) { const a = (k + 1) / tr.length, r = 1 + Math.round(a * 4); ctx.globalAlpha = a * 0.6; px(ctx, '#58d0f8', Math.round(tr[k][0] * T - ox) - r, Math.round(tr[k][1] * T - oy) - r, r * 2, r * 2); }
+    ctx.globalAlpha = 1;
+    const [wx, wy] = wispPos();
+    ctx.drawImage(WISP[ph], Math.round(wx * T - ox) - 8, Math.round(wy * T - oy) - 8);
+  }
+  if (mode === 'hub' && !fire) {
+    const s = city.start, sx = (s % W) * T - ox, sy = ((s / W) | 0) * T - oy, p = 2 + ph * 2;
+    ctx.strokeStyle = '#f06018'; ctx.lineWidth = 2; ctx.strokeRect(sx - p, sy - p, T + p * 2, T + p * 2);
+  }
+  overlay();
+}
+function textBox(lines, y0, step = 21) {
+  ctx.fillStyle = BCOL; ctx.fillRect(18, y0 - 18, cv.width - 36, lines.length * step + 14);
+  ctx.strokeStyle = FCOL; ctx.lineWidth = 2; ctx.strokeRect(20, y0 - 16, cv.width - 40, lines.length * step + 10);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => { ctx.fillStyle = l.c === 'dim' ? DCOL : (l.c === 'hot' ? '#ffa030' : FCOL); ctx.font = (l.b ? 'bold ' : '') + (l.s || 13) + 'px "Courier New", monospace'; ctx.fillText(l.t, cv.width / 2, y0 + i * step); });
+}
+function overlay() {
+  if (mode === 'hub') {
+    const L = [{ t: 'WIND FIRE', b: 1, s: 22, c: 'hot' }];
+    if (lastRun) L.push({ t: lastRun.burned + ' burned   +' + lastRun.ash + ' ash' + (lastRun.newBest ? '  NEW BEST' : ''), s: 12 });
+    else L.push({ t: 'fly the wisp, spread the fire', c: 'dim', s: 12 });
+    L.push({ t: 'ASH ' + save.ash + '    BEST ' + save.best, b: 1, s: 12 });
+    SHOP.forEach((it, k) => { const l = lvl(it.id), sel = k === shopCur; L.push({ t: (sel ? '> ' : '  ') + it.name + ' L' + l + '  ' + (l >= (it.max || MAXL) ? 'MAX' : cost(it)), c: sel ? 'hot' : '', s: 12 }); });
+    L.push({ t: SHOP[shopCur].desc, c: 'dim', s: 10 });
+    L.push({ t: 'A buy   START go   SELECT new city', c: 'dim', s: 10 });
+    textBox(L, 32, 20);
+  } else if (mode === 'levelup') {
+    const L = [{ t: 'LEVEL ' + (level + 1) + '!  pick one', b: 1, s: 16, c: 'hot' }];
+    choices.forEach((c, k) => { L.push({ t: (k === cursor ? '> ' : '  ') + c.name, b: 1, c: k === cursor ? 'hot' : '', s: 13 }); L.push({ t: c.desc, c: 'dim', s: 10 }); });
+    L.push({ t: 'stick up/down, A to choose', c: 'dim', s: 10 });
+    textBox(L, 62, 22);
+  } else if (mode === 'pause') textBox([{ t: 'PAUSED', b: 1, s: 22 }, { t: 'press START', c: 'dim' }], 130);
+}
+function hud() {
+  if (mode === 'hub') { $('time').textContent = 'ASH ' + save.ash; $('burned').textContent = 'BEST ' + save.best; return; }
+  $('time').textContent = 'LV ' + (level + 1) + '  heat ' + xp + '/' + need(level) + (fire && fire.mod.dash > 0 ? (fire.dashCd > 0 ? '  dash ' + fire.dashCd.toFixed(1) : '  dash READY') : '');
+  $('burned').textContent = 'BURNED ' + (fire ? fire.burnedB : 0);
+}
+function loop(ts) {
+  const dt = Math.min(0.25, (ts - last) / 1000 || 0); last = ts;
+  stickNav();
+  if (mode === 'play') { acc += dt; while (acc >= DT && mode === 'play') { simStep(); acc -= DT; } } else acc = 0;
+  render(); hud();
+  requestAnimationFrame(loop);
+}
+newCity();
+requestAnimationFrame(loop);
+window.__wf = { render, simStep, hud, begin, endRun, press, get mode() { return mode; }, get fire() { return fire; }, get save() { return save; }, get level() { return level; }, get xp() { return xp; }, get choices() { return choices; }, get pad() { return pad; } };
+</script>
+</body>
+</html>

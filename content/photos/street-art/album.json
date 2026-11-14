@@ -1,0 +1,11 @@
+{
+  "title": "Found Street Art",
+  "description": "Stickers, murals and other street art I come across.",
+  "cover": "osaka-green-sticker.jpg",
+  "captions": {
+    "osaka-green-sticker.jpg": {
+      "caption": "Sticker found in Osaka.",
+      "alt": "A round green sticker on a concrete wall showing an illustrated girl with a black bob haircut breathing out smoke, with stylized graffiti lettering across her face. A flammable warning sign is stuck below it."
+    }
+  }
+}

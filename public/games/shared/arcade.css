@@ -1,0 +1,83 @@
+/* Shared look for the westonwhat.com arcade games. */
+@font-face {
+  font-family: "VT323";
+  src: url("../../fonts/vt323.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("../../fonts/press-start-2p.woff2") format("woff2");
+  font-display: swap;
+}
+:root {
+  --bg: #000;
+  --green: #39ff6a;
+  --pink: #ff2fb4;
+  --cyan: #00f0ff;
+  --amber: #ffd23d;
+  --red: #ff3355;
+  --dim: #8a94c8;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: #e6ebff; overflow: hidden; }
+body {
+  font-family: "VT323", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 20px;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hud {
+  display: flex;
+  gap: 1em;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 2px solid #1a2a7a;
+  background: #020824;
+  line-height: 1.1;
+  flex: none;
+  flex-wrap: wrap;
+}
+.hud b { color: var(--green); font-weight: normal; }
+.hud .best b { color: var(--amber); }
+.stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+canvas { display: block; image-rendering: pixelated; touch-action: none; outline: none; }
+canvas:focus-visible { outline: 2px dashed var(--pink); outline-offset: 2px; }
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 0 8px currentColor;
+  background: rgba(0, 0, 0, 0.62);
+}
+.overlay[hidden] { display: none; }
+.overlay h1 {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(14px, 5vmin, 28px);
+  margin: 0 0 0.6em;
+  color: var(--pink);
+  font-weight: normal;
+}
+.overlay p { margin: 0.2em 0; color: var(--cyan); font-size: clamp(16px, 4.2vmin, 24px); }
+.blink { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+button {
+  font: inherit;
+  color: #e6ebff;
+  background: #0a1a6b;
+  border: 2px solid;
+  border-color: #4d6bff #020824 #020824 #4d6bff;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+button:active, button[aria-pressed="true"] { border-color: #020824 #4d6bff #4d6bff #020824; background: #06104a; }
+button:focus-visible { outline: 2px dashed var(--pink); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .blink { animation: none; } }

@@ -1,0 +1,86 @@
+{
+  "title": "Video Game Screenshots",
+  "description": "",
+  "sort": "name",
+  "cover": "02-dragon-over-imperial-city.jpg",
+  "captions": {
+    "01-swarm-of-daedra-hearts.jpg": {
+      "alt": "Top-down view of a huge swarm of dark red heart-shaped items covering a round stone floor with carved patterns, with a health bar and compass at the bottom"
+    },
+    "02-dragon-over-imperial-city.jpg": {
+      "alt": "A large pale dragon flying over broken white pillars in front of a tall stone tower and city walls under a smoky sky, with a red-robed figure far below"
+    },
+    "03-fire-and-daedra.jpg": {
+      "alt": "A red horned demon warrior raising a dagger on the left while a blazing yellow and orange fire spell fills the right side of the screen"
+    },
+    "04-dark-dragon-at-night.jpg": {
+      "alt": "A black dragon with dark leathery wings standing on a grassy riverbank at night under a starry sky, with a tall tower in the distance"
+    },
+    "05-riding-dragon-under-red-moon.jpg": {
+      "alt": "A figure in dark armor riding a dragon with spread wings high above a forested mountain at night, with a large red-brown moon above"
+    },
+    "06-frost-resisted-hooded-mages.jpg": {
+      "alt": "A character with a glowing white-blue sword and a shield with a silver horned crest faces two hooded mages in red robes on a rocky hillside, with the text Frost Damage effect resisted"
+    },
+    "07-dragon-rider-and-moon.jpg": {
+      "alt": "A rider on a dark dragon with curved wings silhouetted against a large red-brown moon in a starry night sky"
+    },
+    "08-dark-brotherhood-hideout.jpg": {
+      "alt": "Inside a wooden loft, a smiling hooded woman in black stands in front of two other hooded figures, a fireplace and a body hanging upside down from a beam"
+    },
+    "09-camp-with-daedric-weapon.jpg": {
+      "alt": "First-person view of a blue glowing daedric sword with horns and skulls held toward a campfire and tent by a ruined stone wall at dusk"
+    },
+    "10-tower-of-daedra-hearts.jpg": {
+      "alt": "Looking up a tall twisted column of dark red heart-shaped items inside a round stone hall with arches and pillars, with the text Daedra Heart 25"
+    },
+    "11-pokeball-and-bow.jpg": {
+      "alt": "First-person view of a long wooden bow pointed up at tall trees and a pink-blue sky, with a red and white pokeball floating nearby"
+    },
+    "12-dragon-and-undead-ambush.jpg": {
+      "alt": "Top-down view of a dragon on the left and a group of skeletons, zombies, a hooded mage and an archer on a rocky hillside with white stone slabs"
+    },
+    "13-home-new-year-ball-avatar.jpg": {
+      "alt": "A character in a tan jacket and gloves standing in front of a large glowing New Year ball with the text Happy 2010 New Year in PlayStation Home"
+    },
+    "14-home-plaza-portal.jpg": {
+      "alt": "Two avatars near a large dark metal portal arch beneath a big black screen in a PlayStation Home plaza"
+    },
+    "15-home-listen-at-home-stage.jpg": {
+      "alt": "Avatars dancing and standing in front of a red outdoor stage with a large screen reading Listen@Home in PlayStation Home"
+    },
+    "16-home-portal-closeup.jpg": {
+      "alt": "An avatar in a dark shirt standing in front of a glowing blue-white energy portal inside a large metal arch"
+    },
+    "17-home-new-year-ball.jpg": {
+      "alt": "A tiled New Year ball with the text Happy 2010 New Year above a red round stage with two spotlights in a plaza"
+    },
+    "18-home-moose-head-avatar.jpg": {
+      "alt": "An avatar wearing a moose head and a gold skull chain next to a character in a black and blue glowing suit with an orange hat, in a PlayStation showroom with a LittleBigPlanet sign"
+    },
+    "19-home-e3-crouching-with-connor.jpg": {
+      "alt": "A character in a glowing blue-lined black suit crouching on a dark carpet next to a hooded assassin in a blue coat, in a PlayStation E3 showroom"
+    },
+    "20-home-e3-hatchet-and-assassin.jpg": {
+      "alt": "A character in an orange hat holding a hatchet beside a hooded assassin, with rows of PS3 screens behind them"
+    },
+    "21-home-e3-showroom-overview.jpg": {
+      "alt": "Overview of a large PlayStation showroom with rows of PS3 screens, white display podiums and a ring of stage lights"
+    },
+    "22-home-e3-balcony-view.jpg": {
+      "alt": "A character in a black and blue suit looking over a balcony at a PlayStation showroom, with a treasure chest of gold on the right"
+    },
+    "23-home-e3-with-connor-stairs.jpg": {
+      "alt": "A character with black hair and glasses standing beside a hooded assassin in a blue coat in front of a PlayStation logo and a staircase"
+    },
+    "24-home-e3-with-big-orange-guy.jpg": {
+      "alt": "A small character in a glowing blue-lined suit standing next to a huge bearded man in an orange shirt and ammo straps, in front of PlayStation logos"
+    },
+    "25-home-e3-low-angle-with-assassin.jpg": {
+      "alt": "A low-angle view of a character in an orange hat holding a golden bolt-shaped weapon next to a hooded assassin, under a blue ceiling"
+    },
+    "26-home-e3-with-sackboy-kart.jpg": {
+      "alt": "A knitted Sackboy in a kart in front of a character in an orange hat holding a golden weapon, in a dark showroom with a soldier statue"
+    }
+  }
+}

@@ -1,0 +1,323 @@
+{
+  "title": "Japan",
+  "description": "",
+  "cover": "00-flight-over-clouds.jpg",
+  "captions": {
+    "00-flight-over-clouds.jpg": {
+      "caption": "On my first flight to Japan. I worked hard and gave up a lot to save for this trip, and it was the biggest feeling of fulfillment I'd had up to that point.",
+      "alt": "View from an airplane window of the wing over a wide field of white clouds above a blue sea, with the sun glaring at the top left"
+    },
+    "akihabara-01-shop-billboards-genshin.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Akihabara street corner with large anime billboards on stacked buildings, including a Genshin Impact ad, an at-home cafe maid ad and an orange pawn shop sign, with cars at the intersection"
+    },
+    "akihabara-02-espace-railgun-billboard.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Tall building with a huge anime billboard of a girl in a school uniform surrounded by lightning above a pachinko parlor sign, next to an orange Akiba Mahjong Zoo building, with a Coca-Cola truck on the street"
+    },
+    "akihabara-03-figure-on-railing.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Small brown-haired sailor-uniform figure with an open mouth and outstretched arms standing on a black railing, with a pink arcade building and yellow ramen signs behind it"
+    },
+    "akihabara-04-gundam-heads-escalator.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Red Zaku head and white Gundam head statues beside an escalator, surrounded by anime posters and cardboard standees on an orange and black wall"
+    },
+    "akihabara-05-arcade-seats-ice-cream-machine.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Inside an arcade: black stools in the foreground, a coin exchange machine and a bright ice cream vending machine on the right, and a person playing a Kancolle arcade cabinet in the background"
+    },
+    "akihabara-06-view-over-street-sun.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Looking down on an Akihabara street from above, with a low sun behind a tall building, a Hirose Musen sign, Sofmap and GiGO buildings, and trees along the road"
+    },
+    "akihabara-07-figure-at-pc-booth.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "The same small sailor-uniform figure on top of a black PC tower in a net cafe booth, with a Wi-Fi sign above and a monitor showing a Japanese menu"
+    },
+    "akihabara-08-gigo-mulan-tall-view.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Tall red GiGO building and yellow Mulan building with a long anime banner, seen from the street with trees in front and an overcast sky"
+    },
+    "akihabara-09-street-wide-overcast.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Wide low-angle view of an Akihabara street with GiGO, Sofmap, Hirose Musen and Mulan buildings covered in anime banners, with cars passing under an overcast sky"
+    },
+    "akihabara-10-godzilla-girl-sticker.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Black and white sticker of a girl in a sailor cap sitting on a small Godzilla, stuck on a black surface next to Goku and Magenta stickers"
+    },
+    "akihabara-11-night-rain-crossing.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Rainy night crossing under an elevated rail line, with people holding umbrellas, a red GiGO building, Sofmap and glowing neon signs"
+    },
+    "akihabara-12-night-side-street-gigo.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Quiet night side street with a GiGO sign on the left, vending machines, a glowing yellow net cafe building ahead and a mirrored GiGO sign reflected in dark stone on the right"
+    },
+    "akihabara-13-daytime-view-gigo-sofmap.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Elevated daytime view of an Akihabara crossing with a red GiGO building, a yellow Mulan building with a Genshin banner, a glass tower and a blue Sofmap building under a clear sky"
+    },
+    "akihabara-14-green-soft-serve.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Hand holding a green soft-serve ice cream cone in front of blurred Akihabara street signs"
+    },
+    "akihabara-15-slime-buns-menu.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Two steamed buns with smiling Dragon Quest slime faces in a bamboo steamer in front of a Square Enix Cafe takeout menu"
+    },
+    "akihabara-16-slime-bun-square-enix-cafe.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "A slime-faced steamed bun held up in front of the entrance to Square Enix Cafe"
+    },
+    "akihabara-17-donkey-kong-house-toy.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Boxed Donkey Kong toy house in a display case with a price tag of 7,700 yen, with Kirby and amiibo items around it"
+    },
+    "akihabara-18-blue-eyes-dragon-figure.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Large Blue-Eyes Ultimate Dragon figure with three heads on a stand in a glass case, with price tags in front"
+    },
+    "akihabara-19-akiba-island-donki-sign.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Building top with a Donki penguin mascot and an AKIBA ISLAND anime girl sign next to a tall yellow and blue Don Quijote sign"
+    },
+    "akihabara-20-real-gold-can-and-bun.jpg": {
+      "caption": "Akihabara, 2023.",
+      "alt": "Orange steamed bun on paper next to a Real Gold energy drink can with a muscular cartoon character, on a railing"
+    },
+    "tokyo-01-empty-can-bin.jpg": {
+      "alt": "A rusty blue mesh bin with a sign reading 空き缶 (empty cans) taped to it, with a few crushed cans inside, beside a stone path"
+    },
+    "tokyo-02-pine-ring-bentendo.jpg": {
+      "alt": "A pine tree branch wrapped in cloth and bent into a circle, framing a distant teal-roofed temple and a busy path in a park"
+    },
+    "tokyo-03-sumida-river-boats.jpg": {
+      "alt": "Red-roofed houseboats moored along a wide river in Tokyo, with a blue arched bridge and a gold-topped building in the distance"
+    },
+    "tokyo-04-night-crossing-kameido.jpg": {
+      "alt": "Low-angle night view of a pedestrian crossing with a red signal, tall apartment buildings and a park entrance sign"
+    },
+    "tokyo-05-unicorn-gundam.jpg": {
+      "alt": "The giant white Unicorn Gundam statue standing in front of a glass tower under a deep blue sky"
+    },
+    "tokyo-06-fuji-media-building.jpg": {
+      "alt": "The Fuji Media Holdings building with its large silver sphere, a tall red sign and a glass tunnel entrance under a cloudy sky"
+    },
+    "tokyo-07-tugboat-wake.jpg": {
+      "alt": "A small tugboat with tire fenders and an orange winch speeding across blue water, leaving a white wake"
+    },
+    "tokyo-08-ice-cream-waffle.jpg": {
+      "alt": "A hand holding a bitten yellow waffle sandwich filled with white ice cream, in front of green bushes"
+    },
+    "tokyo-09-yakisoba-bun.jpg": {
+      "alt": "A hand holding a bitten bread roll stuffed with yakisoba noodles"
+    },
+    "tokyo-10-van-houten-cocoa.jpg": {
+      "alt": "A can of Van Houten cocoa held up in front of a lit Asahi vending machine with glowing price displays"
+    },
+    "tokyo-11-milk-and-cocoa-can.jpg": {
+      "alt": "A hand holding a Kirin milk and cocoa can with a cow on it, in front of a yellow vending machine"
+    },
+    "tokyo-12-pepsi-refresh-shot.jpg": {
+      "alt": "A hand holding a Pepsi Refresh Shot energy cola can on a dark street"
+    },
+    "tokyo-13-smiley-sticker.jpg": {
+      "alt": "A yellow smiley-face sticker with a rude anti-school slogan on a beige pole"
+    },
+    "tokyo-14-curry-bread.jpg": {
+      "alt": "A hand holding a bitten fried curry bread showing the curry filling"
+    },
+    "tokyo-15-crunky-bits.jpg": {
+      "alt": "An open box of Lotte Crunky Bits chocolate pieces held in a hand"
+    },
+    "tokyo-16-tetsujin-robot-statue.jpg": {
+      "alt": "A blue and red robot statue with raised fists wearing goggles, standing in a small shop alcove with a Do Not Ride sign"
+    },
+    "tokyo-17-retro-game-camp-shop.jpg": {
+      "alt": "The front of a Retro Game Camp shop with a pixel-art sign, game displays and a passer-by inside"
+    },
+    "tokyo-18-wild-riders-arcade.jpg": {
+      "alt": "A Sega Wild Riders motorcycle arcade cabinet in orange next to a Crazy Taxi cabinet"
+    },
+    "tokyo-19-parodius-arcade.jpg": {
+      "alt": "A Konami Parodius arcade cabinet with its title screen showing, in a row of cabinets including Tetris and Aero City"
+    },
+    "tokyo-20-painted-lobster-alley.jpg": {
+      "alt": "A red lobster painted on a dark wooden wall above a fire hydrant pipe and a blue bin, next to a graffiti-covered gray box"
+    },
+    "tokyo-21-sangokushi-taisen-arcade.jpg": {
+      "alt": "A Sega Sangokushi Taisen arcade cabinet with a wide top screen and a glowing touch table"
+    },
+    "tokyo-22-stoner-sticker-pole.jpg": {
+      "alt": "A black and white STONER sticker with katakana text on a metal pole covered in other stickers"
+    },
+    "tokyo-23-akihabara-corner-blue-sky.jpg": {
+      "alt": "A sunny Akihabara intersection with colorful anime billboards on tall buildings, a motorcyclist in the foreground and a blue sky with clouds"
+    },
+    "tokyo-24-underpass-alley-juraku.jpg": {
+      "alt": "A narrow alley running under a railway viaduct beside a skewer restaurant with red and white lanterns, and a graffitied shutter"
+    },
+    "tokyo-25-capsule-hotel-pod.jpg": {
+      "alt": "Looking into a small capsule hotel pod with a woven bamboo blind, a wall-mounted TV, a Wi-Fi sign and a jacket on the bed"
+    },
+    "tokyo-26-beef-tongue-vending-machine.jpg": {
+      "alt": "A black vending machine selling frozen Sendai beef tongue and grilled meat packs, next to a photo booth machine"
+    },
+    "tokyo-27-valkyrie-toy-white-blue.jpg": {
+      "alt": "A white, blue and red transforming valkyrie robot toy with a gun and a skull emblem on its chest, on a clear display stand"
+    },
+    "tokyo-28-mecha-with-bow-tie.jpg": {
+      "alt": "A white and blue mecha figure with a big red bow tie holding a small blonde chibi figure in a veil, in front of a red cloth and a castle backdrop"
+    },
+    "tokyo-29-tan-valkyrie-display.jpg": {
+      "alt": "A cream and red valkyrie transformable robot figure posed in mid-air on a stand in front of a red and orange backdrop"
+    },
+    "tokyo-30-canti-flcl-figure.jpg": {
+      "alt": "A red robot figure with a TV-shaped head and a green cloth cape kneeling on a display, with a blue robot behind it"
+    },
+    "tokyo-31-naruto-and-kakashi.jpg": {
+      "alt": "Life-size statues of Naruto with crossed arms and Kakashi behind him in a dark store"
+    },
+    "tokyo-32-sakura-and-sasuke.jpg": {
+      "alt": "Life-size statues of Sakura with clasped hands and Sasuke beside her, with a Shopping sign and a figure display case behind"
+    },
+    "tokyo-33-gamera-figure.jpg": {
+      "alt": "A Gamera 1999 Kyoto Decisive Battle figure with open jaws in a glass display case"
+    },
+    "tokyo-34-twisted-bread-lotus-pond.jpg": {
+      "alt": "A hand holding a twisted peach and pink swirl bread in front of a pond full of dried brown lotus stalks"
+    },
+    "tokyo-35-ema-wishing-plaques.jpg": {
+      "alt": "A tall pile of wooden ema wishing plaques with purple and green cords, some painted with rabbits and many with handwritten wishes"
+    },
+    "tokyo-36-garden-bridge-pond.jpg": {
+      "alt": "A small arched wooden bridge over a garden pond with mossy stepping stones, a bare plum tree and apartment buildings behind"
+    },
+    "tokyo-37-akihabara-station-street.jpg": {
+      "alt": "A wide pedestrian street beside Akihabara Station with tiled pavement, electronics stores and a blue sky"
+    },
+    "tokyo-38-red-coffee-truck.jpg": {
+      "alt": "A red coffee truck with Japanese lettering parked in a plaza behind a round table and chairs"
+    },
+    "tokyo-39-titans-mecha-model.jpg": {
+      "alt": "A yellow and green Titans mecha model in front of a yellow and blue Japanese sign"
+    },
+    "tokyo-40-lunch-food-trucks.jpg": {
+      "alt": "A row of lunch food trucks, including a teal noodle truck and a Plus Spice naan and curry truck, along a tree-lined pavement"
+    },
+    "tokyo-41-chicken-cutlet-sandwich.jpg": {
+      "alt": "A hand holding a bitten fried chicken and cabbage sandwich on a bread roll"
+    },
+    "tokyo-42-watercolor-poster-three-men.jpg": {
+      "alt": "A watercolor poster of three men, one with a slicked pompadour and a cigarette holding a glass of beer, on a white wall"
+    },
+    "tokyo-43-patlabor-posters-row.jpg": {
+      "alt": "Three large painted anime posters on a white wall, showing a police mecha, two officers reading a map and a young officer in front of a dark mecha"
+    },
+    "tokyo-44-patlabor-poster-closeup.jpg": {
+      "alt": "A painted poster of a young officer sitting on a white and black police mecha with a number 1 marking"
+    },
+    "tokyo-45-patlabor-posters-stairwell.jpg": {
+      "alt": "Three painted mecha posters along a stairwell wall beside gray steps"
+    },
+    "tokyo-46-famicom-disk-system.jpg": {
+      "alt": "A hand holding a shrink-wrapped red Nintendo Family Computer Disk System with a junk-item sticker in a store"
+    },
+    "tokyo-47-akira-figures-shelf.jpg": {
+      "alt": "Small Akira figures of a biker on a motorcycle and a character with a gun, next to two lion figures, on a yellow shelf with price tags"
+    },
+    "tokyo-48-medarot-game-boxes.jpg": {
+      "alt": "A glass case of Medarot Game Boy and Game Boy Color boxes, Kabuto and Kuwagata versions, with guide books and a toy above"
+    },
+    "tokyo-49-medarot-figure.jpg": {
+      "alt": "A yellow and pale green Medarot robot toy in a blue display case"
+    },
+    "tokyo-50-miku-itasha-van.jpg": {
+      "alt": "A silver van covered in Hatsune Miku racing artwork driving through a Tokyo intersection"
+    },
+    "tokyo-51-egg-rice-and-chuhai.jpg": {
+      "alt": "A black tray of rice with scrambled egg and minced meat beside an open chuhai can on a marble counter"
+    },
+    "tokyo-52-gyoza-and-fried-rice.jpg": {
+      "alt": "A tray with a plate of six gyoza and a bowl of fried rice on a restaurant counter with condiments"
+    },
+    "tokyo-53-capsule-sailor-moon.jpg": {
+      "alt": "A view from inside a capsule hotel pod of a small TV showing Sailor Moon characters"
+    },
+    "tokyo-54-pink-glazed-bun.jpg": {
+      "alt": "A hand holding a bitten pink glazed bun"
+    },
+    "tokyo-55-glasses-and-sake-carton.jpg": {
+      "alt": "A pair of wooden-frame glasses on a purple wallet next to a small carton of Oni Koroshi sake"
+    },
+    "tokyo-56-red-daruma.jpg": {
+      "alt": "A red daruma doll with gold accents on a checkered red and white mat on a dark outdoor table"
+    },
+    "tokyo-57-yakisoba-bun-and-coke.jpg": {
+      "alt": "A hand holding a bitten yakisoba bread roll next to a can of Coca-Cola"
+    },
+    "tokyo-58-koi-pond.jpg": {
+      "alt": "A white koi with a red patch on its head nuzzling an orange and a yellow koi in a pond with floating leaves"
+    },
+    "tokyo-59-rabbit-mask-shop-window.jpg": {
+      "alt": "A mannequin in a black jacket and a fluffy rabbit mask standing in a pink-lit shop doorway, next to a sign reading No Sexual Services"
+    },
+    "tokyo-60-banana-boat-harajuku.jpg": {
+      "alt": "Banana Boat, a green and yellow shop with a painted Spider-Man mask, on a sunny Harajuku side street with two people walking past"
+    },
+    "tokyo-61-mirror-selfie-shibuya.jpg": {
+      "alt": "A mirror selfie in angled mirror panels of a person in a beanie, mask, glasses and yellow plaid shirt, with a Peter Pan cafe sign at the bottom"
+    },
+    "tokyo-62-eggslut-sign.jpg": {
+      "alt": "A glowing egg-shaped Eggslut sign above a mall corridor with exposed ceiling ducts and a G-Shock sign"
+    },
+    "tokyo-63-eggslut-shop.jpg": {
+      "alt": "The Eggslut counter in a mall corridor with menu boards, black chairs and wooden screen dividers"
+    },
+    "tokyo-64-fried-rice-gyoza-karaage.jpg": {
+      "alt": "A bowl of fried rice, a plate of gyoza and a small plate of fried chicken with cabbage and mayonnaise on a restaurant tray"
+    },
+    "tokyo-65-king-slime-medal-game.jpg": {
+      "alt": "A Dragon Quest King Slime medal game machine with a giant blue slime wearing a gold crown on top"
+    },
+    "tokyo-66-midget-ii-classic.jpg": {
+      "alt": "A yellow Daihatsu Midget II Classic mini truck with round headlights and a spare tire cover, parked in a driveway"
+    },
+    "tokyo-67-tokyo-hill-street.jpg": {
+      "alt": "A sloping red-surfaced street with yellow and orange apartment buildings, green guard rails and two people walking"
+    },
+    "tokyo-68-large-pork-bun.jpg": {
+      "alt": "A hand holding a steamed large pork bun on its paper wrapper in a park"
+    },
+    "tokyo-69-mandarake-godzilla-shutter.jpg": {
+      "alt": "A yellow shop shutter painted with a samurai and Godzilla beside red Mandarake shutters"
+    },
+    "tokyo-70-magazine-rack-mandarake.jpg": {
+      "alt": "A rack of vintage Japanese magazines including Newtype, Tokyo Jin, railway journals and comics"
+    },
+    "tokyo-71-anime-cel-closeup.jpg": {
+      "alt": "A framed hand-painted anime cel of a girl with brown pigtails and a yellow headband in a display case"
+    },
+    "tokyo-72-mandarake-cel-case.jpg": {
+      "alt": "A glass display case of framed anime cels and art books with price tags, with a Mandarake sign at the bottom"
+    },
+    "tokyo-73-mandarake-cel-storefront.jpg": {
+      "alt": "The Mandarake anime cel shop front with glass cases full of framed cels under a yellow frame"
+    },
+    "tokyo-74-maetel-cutout.jpg": {
+      "alt": "A cardboard cutout and costume mannequin of Maetel from Galaxy Express 999 beside large Sailor Moon figures"
+    },
+    "tokyo-75-blue-sawhorse-building.jpg": {
+      "alt": "A blue sawhorse barrier in a leafy garden in front of a tan building and a concrete wall with a slatted vent"
+    },
+    "tokyo-76-park-waterfall-wall.jpg": {
+      "alt": "A curved stone wall with water cascading into a shallow pool in a park, with bare trees and a brick path"
+    },
+    "tokyo-77-takoyaki-stand-night.jpg": {
+      "alt": "A night view of a small takoyaki stand with a blue awning, neon octopus sign, red lantern and chalkboard menu"
+    }
+  },
+  "sort": "name"
+}

@@ -1,0 +1,3033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypt Crawler</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace;color:#ddd;user-select:none}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+  /* PS1-style intro render (Three.js), letterboxed 16:9 */
+  #intro3d{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100vw,177.78vh);height:min(100vh,56.25vw);image-rendering:pixelated;display:none;background:#000}
+  #intro3d.on{display:block}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none}
+  #caption{position:fixed;left:0;right:0;bottom:14%;text-align:center;font-size:clamp(12px,2.2vw,20px);padding:0 10px;box-sizing:border-box;color:#f2e6c0;text-shadow:0 2px 4px #000;letter-spacing:2px;pointer-events:none;display:none}
+  body.intro #hud,body.intro #msg{display:none}
+  /* ending: title and credit roll laid over the cutscene */
+  #endtitle,#endroll{position:fixed;display:none;pointer-events:none;text-align:center;text-transform:uppercase;overflow:hidden}
+  #endtitle{white-space:nowrap;font:900 40px/1 Impact,'Arial Black','Roboto Condensed',sans-serif;letter-spacing:2px;transition:opacity 1.5s;opacity:0;
+    background:linear-gradient(#fff6a8 0%,#ffd23a 30%,#ff7a12 60%,#c41a08 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 0 #300) drop-shadow(0 0 12px rgba(0,0,0,.8))}
+  #endroll{-webkit-mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
+  #endin{color:#f2e6c0;text-shadow:0 2px 4px #000,0 0 8px #000;letter-spacing:.12em;line-height:1.9;will-change:transform}
+  #endin b{display:block;color:#ffb060;font-size:.8em;letter-spacing:4px;margin-top:1.6em}
+  #hud{position:fixed;left:12px;top:12px;right:90px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;pointer-events:none;text-shadow:0 1px 2px #000;font-size:14px}
+  #hpbar{width:180px;height:12px;border:1px solid #777;background:#300}
+  #hpfill{height:100%;width:100%;background:#c93030;transition:width .15s}
+  /* boss health bar: top centre of the view, under the message line, while a boss that has seen you is alive */
+  #bossbar{position:fixed;left:0;right:0;top:66px;display:none;flex-direction:column;align-items:center;gap:3px;pointer-events:none;text-shadow:0 1px 2px #000}
+  #bossname{color:#ffb23a;font-size:12px;letter-spacing:4px}
+  #bosstrack{width:min(60%,420px);height:9px;border:1px solid #a33;background:#200}
+  #bossfill{height:100%;width:100%;background:linear-gradient(#ff7a12,#c41a08);transition:width .15s}
+  body.intro #bossbar{display:none!important}
+  #msg{position:fixed;top:44px;left:0;right:0;text-align:center;text-shadow:0 1px 3px #000;pointer-events:none;transition:opacity .6s;font-size:16px;color:#f0d890;opacity:0}
+  /* ---- arcade-style menus ---- */
+  #overlay{overflow-y:auto;position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:12px;text-align:center;padding:16px;box-sizing:border-box;
+    background:radial-gradient(ellipse at 50% 40%,rgba(60,0,0,.55),rgba(0,0,0,.92) 70%);font-family:ui-monospace,'Courier New',monospace;text-transform:uppercase}
+  #overlay::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px)}   /* CRT scanlines */
+  #overlay h1{margin:0;font:900 clamp(34px,8.5vw,84px)/0.9 Impact,'Arial Black','Roboto Condensed',sans-serif;letter-spacing:2px;
+    transform:perspective(300px) rotateX(14deg) scaleY(1.25);
+    background:linear-gradient(#fff6a8 0%,#ffd23a 22%,#ff7a12 48%,#c41a08 72%,#5a0600 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 0 #300) drop-shadow(0 4px 0 #200) drop-shadow(0 6px 0 #100) drop-shadow(0 0 18px rgba(255,80,0,.55))}
+  #overlay h1.dead{background:linear-gradient(#ff8a8a,#d00 50%,#400);-webkit-background-clip:text;background-clip:text}
+  #tag{color:#ff8a3a;letter-spacing:6px;font-size:13px;margin:14px 0 2px;text-shadow:0 0 8px #f40}
+  #overlay p{max-width:560px;line-height:1.5;margin:0;color:#c8c0b0;font-size:13px}
+  #hiscore{color:#ffe14a;font-size:15px;letter-spacing:3px;text-shadow:0 0 6px #fa0}
+  #hiscore b{color:#fff}
+  /* panels (options, controls, records, credits): a full page over the menu, scrolling if it has to */
+  .panel{display:none;position:absolute;inset:0;z-index:2;overflow-y:auto;background:#0b0606;padding:16px 16px 28px;box-sizing:border-box;text-align:center}
+  .panel.on{display:block}
+  .panel h2{margin:0 0 10px;font:900 clamp(20px,4.6vw,38px)/1 Impact,'Arial Black',sans-serif;letter-spacing:3px;color:#ffb23a;text-transform:uppercase}
+  .panel .back{display:block;margin:10px auto 0}
+  #opts{display:flex;flex-direction:column;align-items:center;gap:6px;color:#c8c0b0;font-size:clamp(11px,1.9vw,14px);letter-spacing:2px}
+  #opts label{display:flex;align-items:center;justify-content:space-between;gap:18px;width:min(92%,380px);padding:3px 8px;border:1px solid transparent}
+  #opts label:has(.sel){border-color:#ffd23a;color:#fff}
+  #opts input{width:150px;accent-color:#ff7a12;cursor:pointer}
+  #opts button{min-width:150px;background:#200;border:1px solid #a33;color:#ffd23a;font:700 12px ui-monospace,monospace;letter-spacing:2px;text-transform:uppercase;padding:4px 10px;cursor:pointer}
+  #keypanel td button.sel{outline:2px solid #ffd23a;color:#fff}
+  #help{color:#8a8078!important;font-size:11px!important;max-width:640px;margin:14px auto 0!important;text-transform:none}
+  @media (max-height:460px){#overlay{gap:3px!important;padding:6px!important}#overlay h1{font-size:34px!important;white-space:nowrap;margin:4px 0 12px!important}#tag{display:none!important}#hiscore{font-size:11px}#menu{margin-top:2px;gap:0}#menu button,.back{font-size:12px;padding:1px 10px;letter-spacing:3px}#overlay p{font-size:10px}.panel{padding:8px 10px 16px}.panel h2{font-size:20px;margin-bottom:4px}#opts{gap:2px;font-size:10px}}
+  /* the menu: a plain vertical list; the selected line is bright with arrows either side */
+  #menu{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:8px}
+  #menu button,.back{background:none;border:0;color:#a8938a;font:700 clamp(13px,2.4vw,20px) ui-monospace,'Courier New',monospace;letter-spacing:4px;padding:4px 14px;cursor:pointer;text-transform:uppercase;white-space:nowrap}
+  #menu button.sel,.back.sel{color:#fff;text-shadow:0 0 6px #f40,0 0 14px #f20}
+  #menu button.sel::before,.back.sel::before{content:'▸ '}
+  #menu button.sel::after,.back.sel::after{content:' ◂'}
+  #menu button:hover,.back:hover{background:none}
+  @keyframes blink{50%{opacity:0}}
+  /* credits and licences: a scrolling page over the menu */
+  #overlay>*{flex-shrink:0}
+  
+  /* the selected menu item (keyboard / controller navigation) */
+  #keypanel table{margin:8px auto 12px;border-collapse:collapse;font-size:12px;color:#d8d0c0}
+  #keypanel td{padding:3px 14px;text-align:left}
+  #keypanel td button{min-width:90px;background:#200;border:1px solid #a33;color:#ffd23a;font:700 12px ui-monospace,monospace;padding:4px 8px;cursor:pointer}
+  #keypanel td button.wait{background:#a33;color:#fff}
+  #recpanel table{margin:8px auto;border-collapse:collapse;font-size:12px;color:#d8d0c0}
+  #recpanel td{padding:3px 14px;text-align:left}#recpanel td:last-child{text-align:right;color:#ffe14a}
+  #credits h3{margin:22px 0 4px;color:#ff8a3a;font-size:12px;letter-spacing:4px;text-transform:uppercase}
+  #credits p{max-width:640px;margin:2px auto;color:#d8d0c0;font-size:13px;line-height:1.5}
+  #credits p small{color:#8a8078}
+  #credits pre{max-width:640px;margin:8px auto 0;padding:10px;text-align:left;white-space:pre-wrap;font:10px/1.45 ui-monospace,monospace;color:#8f877c;background:#140c0c;border:1px solid #2a1a1a}
+  @media (max-height:460px){#overlay{gap:6px}#overlay h1{font-size:clamp(28px,7vw,52px)}#overlay p{font-size:11px}#help{display:none}#tag{font-size:11px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<canvas id="intro3d"></canvas>
+<div id="flash"></div>
+<div id="caption"></div>
+<div id="endtitle">SPIRE CONQUERED</div>
+<div id="endroll"><div id="endin"></div></div>
+<div id="msg"></div>
+<div id="bossbar"><div id="bossname"></div><div id="bosstrack"><div id="bossfill"></div></div></div>
+<div id="hud"><div id="hpbar"><div id="hpfill"></div></div><div id="stats"></div></div>
+<div id="overlay">
+  <h1 id="title">CRYPT CRAWLER</h1>
+  <div id="tag">— climb the spire —</div>
+  <p id="intro">One hundred floors. Ten guardians. One way up.</p>
+  <div id="hiscore"></div>
+  <div id="menu">
+    <button id="go">START</button>
+    <button id="newclimb" style="display:none">NEW CLIMB</button>
+    <button id="optbtn">OPTIONS</button>
+    <button id="keysbtn">CONTROLS</button>
+    <button id="records">RECORDS</button>
+    <button id="creditsbtn">CREDITS</button>
+    <button id="quit" style="display:none">QUIT TO TITLE</button>
+  </div>
+  <div id="optpanel" class="panel"><h2>OPTIONS</h2>
+    <div id="opts">
+      <label><span>Sound volume</span><input id="optvol" type="range" min="0" max="100" step="5"></label>
+      <label><span>Music volume</span><input id="optmus" type="range" min="0" max="100" step="5"></label>
+      <label><span>Difficulty</span><button id="optdiff" type="button">normal</button></label>
+      <label><span>Field of view</span><input id="optfov" type="range" min="55" max="100" step="1"></label>
+      <label><span>Colours</span><button id="optpal" type="button">normal</button></label>
+      <label><span>Mouse speed</span><input id="optsens" type="range" min="30" max="250" step="10"></label>
+      <label><span>Display</span><button id="optfull" type="button">full screen</button></label>
+    </div>
+    <button id="optclose" class="back">BACK</button>
+  </div>
+  <div id="keypanel" class="panel"><h2>CONTROLS</h2><p id="keyhint">Choose an action, confirm, then press the key you want for it.</p><table id="keytable"></table><button id="keyreset" class="back">RESET TO DEFAULTS</button><button id="keyclose" class="back">BACK</button><p id="help"></p></div>
+  <div id="recpanel" class="panel"><h2>RECORDS</h2><table id="rectable"></table><button id="recclose" class="back">BACK</button></div>
+  <div id="credits" class="panel">
+    <h2>Credits</h2>
+    <p><small>Crypt Crawler uses the work of these people and projects. Thank you.</small></p>
+    <h3>Creatures, bosses and sound effects</h3>
+    <p>Freedoom · the Freedoom project contributors<br><small>freedoom.github.io · 3-clause BSD licence, below</small></p>
+    <p>Blasphemer · the Blasphemer project contributors<br><small>github.com/Blasphemer/blasphemer · 3-clause BSD licence, below</small></p>
+    <h3>Weapons and hands</h3>
+    <p>Guns, staffs and wands · Freedoom and Blasphemer<br><small>same projects and licences as the creatures</small></p>
+    <p>Fist · FPS Weapon Sprites by Ragnar Random, from models by Quaternius<br><small>opengameart.org · CC0 (public domain)</small></p>
+    <h3>Walls, floors and doors</h3>
+    <p>Modular PSX Sewer Kit<br><small>comp3interactive.itch.io/modular-psx-sewer-kit</small></p>
+    <h3>Music</h3>
+    <p>Freedoom soundtrack · the Freedoom project contributors<br><small>played with the FluidR3 GM soundfont by Frank Wen (MIT licence)</small></p>
+    <h3>3D scenes</h3>
+    <p>three.js · the three.js authors<br><small>threejs.org · MIT licence, below</small></p>
+    <h3>Licences</h3>
+    <pre>Freedoom
+
+Copyright © 2001-2024
+Contributors to the Freedoom project.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+  * Neither the name of the Freedoom project nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS
+IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+For a list of contributors to the Freedoom project, see the file
+CREDITS.</pre>
+    <pre>Blasphemer
+
+Copyright (c) 2021
+Contributors to the Blasphemer project.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  * Redistributions of source code must retain the above copyright 
+    notice, this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright 
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+  * Neither the name of the Blasphemer team nor the names of its 
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS
+IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+For a list of contributors to the Blasphemer project, see the file
+CREDITS.</pre>
+    <pre>three.js
+
+The MIT License
+
+Copyright © 2010-2021 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.</pre>
+    <button id="creditsclose" class="back">BACK</button>
+  </div>
+</div>
+
+<script src="three.min.js"></script>   <!-- three.js r128 (MIT), bundled so the intro and ending work offline -->
+<script src="sounds.js"></script>   <!-- generated by tools/pack_sounds.py; the game is silent if it is missing -->
+<script src="assets.js"></script>   <!-- generated by tools/pack_assets.py; the game falls back to drawn weapons if it is missing -->
+<script>
+(() => {
+const RW = 320, RH = 200;                     // internal low-res buffer, scaled up to the window
+let FOV_PLANE = 0.66;                         // tan(half the horizontal field of view); set from the settings (opts.fov, degrees)
+const STAIRS = 9, DOOR = 4, LOCKED = 5, SECRET = 6, DARTS = 7, FINAL = 100;   // map tiles: 0 floor, 1-3 walls, 4 door, 5 locked door, 6 secret wall, 7 dart wall
+// ---- the climb: 100 floors in 10 zones of 10; each zone ends with its boss on floor 10, 20 ... 100 ----
+// theme = index into THEMES (surface tiles); zones 4-10 reuse tile mixes until they get their own art (plan step 3).
+const ZONES = [
+  { name: 'THE CRYPT',          boss: 'THE WARDEN',          theme: 1 },
+  { name: 'THE SEWERS',         boss: 'THE SEWER KING',      theme: 2 },
+  { name: 'THE CATACOMBS',      boss: 'THE HOLLOW QUEEN',    theme: 3 },
+  { name: 'THE CASTLE HALLS',   boss: 'THE IRON CASTELLAN',  theme: 4 },
+  { name: 'THE FOUNDRY',        boss: 'THE FORGEHEART',      theme: 5 },
+  { name: 'THE SKY TOWER',      boss: 'THE STORM HERALD',    theme: 6 },
+  { name: 'THE UPPER AIR',      boss: 'THE SKYWYRM',         theme: 7 },
+  { name: 'THE VOID',           boss: 'THE VOID ARCHON',     theme: 8 },
+  { name: 'THE ALIEN SPIRE',    boss: 'THE STAR-EATER',      theme: 9 },
+  { name: 'THE OTHER WORLD',    boss: 'THE SPIRE TITAN',     theme: 10 }
+];
+const zoneOf = lv => Math.min(ZONES.length - 1, Math.max(0, Math.ceil(lv / 10) - 1));
+const zoneStart = lv => zoneOf(lv) * 10 + 1;
+const BOSS_NAMES = {}, BOSS_HP = {};
+ZONES.forEach((z, i) => { BOSS_NAMES[(i + 1) * 10] = z.boss; BOSS_HP[(i + 1) * 10] = 600 + 300 * i; });   // 600 ... 3300
+// difficulty grows per zone (not per floor, which would explode by floor 100), plus a little within each zone
+// Difficulty (settings, `opts.diff`): scales enemy damage and health and how much ammo a floor holds. It takes effect
+// from the next floor generated. Normal is the tuning the test bot was balanced on.
+const DIFFS = { easy: { dmg: 0.7, hp: 0.85, ammo: 1.2 }, normal: { dmg: 1, hp: 1, ammo: 1 }, hard: { dmg: 1.3, hp: 1.15, ammo: 0.9 } };
+const DF = () => DIFFS[opts.diff] || DIFFS.normal;
+const bossDmgK = () => opts.diff === 'hard' ? 1.18 : DF().dmg;   // on hard, bosses hit 18% harder (not 30%) and keep normal health: they were the wall
+const hpMul = lv => (1 + 0.12 * zoneOf(lv) + 0.01 * ((lv - 1) % 10)) * DF().hp;
+// ---- balance: what the climb gives back (tools/balance.py prints the whole table, zone by zone) ----
+// The player toughens a little each zone, potions keep pace, and each floor's ammo is sized to the enemies on it:
+// about AMMO_RATIO times their total health in ammo damage, generous in the crypt and tighter near the top.
+const zoneMaxHp = lv => 100 + 10 * zoneOf(lv);                      // 100 in the crypt ... 190 in the other world
+const potionHeal = lv => 35 + 4 * zoneOf(lv);
+const potionCount = lv => 2 + (zoneOf(lv) >= 3) + (zoneOf(lv) >= 7);
+const AMMO_RATIO = lv => (1.9 - 0.04 * zoneOf(lv)) * DF().ammo;                 // 1.9 ... 1.55
+const AMMO_DMG = { ewand: 12, dshot: 37, phoenix: 33, claw: 33, hstaff: 13, mace: 10, plasma: 10, rocket: 80, bfg: 270 };   // damage one unit of ammo really deals, as measured by the test bot (misses and all); sizes each floor's ammo
+const wpnMul = lv => 1 + 0.1 * zoneOf(lv);                          // your weapons hit 10% harder for every zone climbed
+const ARMOUR_MAX = 100, ARMOUR_PICKUP = 50, ARMOUR_SOAK = 0.5;      // armour takes half of each hit until it is gone
+const FURY_TIME = 20, WARD_TIME = 8;                                // double damage / cannot be hurt, in seconds
+let floorAmmo = 1;                                                  // this floor's ammo multiplier, set in generate()
+const dmgMul = lv => (1 + 0.125 * zoneOf(lv)) * DF().dmg;
+// Damage is [min, max] per hit, before the zone bonus (wpnMul). knock = shove back (cells), stun = seconds the enemy
+// cannot move or attack; bosses take 20% knock and 30% stun. One job each:
+//  fist      always there: weak, but shoves and staggers so you can make space
+//  ewand     the starter: steady, accurate single shots
+//  dshot     7 pellets; brutal within 2.5 cells, fading to 25% by 8; big knockback; slow reload
+//  phoenix   fireball: direct hit plus splash on everything within 1.6 cells
+//  claw      chain lightning: weaker hits that jump to 3 enemies and stun them
+//  hstaff    rapid beam that passes through every enemy in the line
+//  mace      sprays spheres that bounce off walls and burst in a small blast: shreds a pack or a corridor, wasteful in the open
+//  plasma    very fast stream of bolts: the best sustained damage on one target
+//  rocket    slow, huge blast
+//  bfg       one core clears the room: hits everything you can see within 9 cells
+const WEAPONS = {
+  fist:    { name: 'FIST',            type: 'melee',    cool: 0.55, dmg: [8, 12],  range: 1.5, arc: 0.7, knock: 1.6, stun: 0.45, ammo: false, animDur: 0.5 },
+  ewand:   { name: 'ELVEN WAND',      type: 'hitscan',  cool: 0.34, dmg: [10, 14], pellets: 1, spread: 0.01, stun: 0.08, ammo: true, animDur: 0.3 },
+  dshot:   { name: 'DOUBLE SHOTGUN',  type: 'hitscan',  cool: 0.95, dmg: [7, 11],  pellets: 7, spread: 0.12, near: 2.5, far: 8, knock: 0.45, stun: 0.12, ammo: true, animDur: 0.9 },
+  phoenix: { name: 'PHOENIX ROD',     type: 'fireball', cool: 0.75, dmg: [30, 40], speed: 8, blast: 1.9, blastDmg: [16, 22], knock: 1.0, ammo: true, animDur: 0.6, spr: 'fire' },
+  claw:    { name: 'DRAGON CLAW',     type: 'chain',    cool: 0.5,  dmg: [16, 22], range: 6, arc: 0.35, chain: 3.2, jumps: 3, falloff: 0.75, stun: 0.4, ammo: true, animDur: 0.6 },
+  hstaff:  { name: 'HELLSTAFF',       type: 'pierce',   cool: 0.17, dmg: [11, 14], range: 12, stun: 0.05, ammo: true, animDur: 0.2 },
+  mace:    { name: 'FIREMACE',        type: 'fireball', cool: 0.16, dmg: [11, 15], speed: 7, spread: 0.1, bounce: 3, life: 2.4, blast: 0.9, blastDmg: [5, 8], boom: 'eboom', ammo: true, animDur: 0.3, spr: 'spit' },
+  plasma:  { name: 'PLASMA RIFLE',    type: 'fireball', cool: 0.12, dmg: [13, 17], speed: 14, ammo: true, animDur: 0.14, spr: 'bolt' },
+  rocket:  { name: 'ROCKET LAUNCHER', type: 'fireball', cool: 0.9,  dmg: [65, 85], speed: 9, blast: 2.5, blastDmg: [40, 55], knock: 1.6, ammo: true, animDur: 0.6, spr: 'rocket', boom: 'bigboom' },
+  bfg:     { name: 'THE BIG ONE',     type: 'nova',     cool: 1.6,  dmg: [150, 210], range: 9, knock: 1.5, ammo: true, animDur: 1.1 }
+};
+// Loot. A weapon cache holds one gun (deeper floors unlock more) plus its starting ammo; an ammo chest stocks every gun
+// unlocked so far. When a gun runs dry it leaves your weapon cycle until you find another cache.
+const WEAPON_FLOOR = { ewand: 1, dshot: 3, phoenix: 6, claw: 9, hstaff: 16, mace: 26, plasma: 46, rocket: 66, bfg: 86 };   // first floor each gun can appear on
+const CRATE_AMMO = { ewand: 24, dshot: 8, phoenix: 8, claw: 10, hstaff: 40, mace: 50, plasma: 60, rocket: 6, bfg: 2 };
+const BOX_AMMO =   { ewand: 12, dshot: 4, phoenix: 3, claw: 3,  hstaff: 14, mace: 16, plasma: 20, rocket: 2, bfg: 1 };
+const AMMO_NAME = { ewand: 'crystals', dshot: 'shells', phoenix: 'flame orbs', claw: 'charges', hstaff: 'runes', mace: 'spheres', plasma: 'cells', rocket: 'rockets', bfg: 'cores' };
+const roll = d => Array.isArray(d) ? Math.round(rnd(d[0], d[1])) : d;
+const WEAPON_ORDER = ['ewand', 'dshot', 'phoenix', 'claw', 'hstaff', 'mace', 'plasma', 'rocket', 'bfg', 'fist'];
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const buf = document.createElement('canvas');
+buf.width = RW; buf.height = RH;
+const bctx = buf.getContext('2d');
+const img = bctx.createImageData(RW, RH);
+const pix = new Uint32Array(img.data.buffer);
+const zBuf = new Float32Array(RW);
+
+const $ = id => document.getElementById(id);
+const overlay = $('overlay'), msgEl = $('msg'), hpfill = $('hpfill'), stats = $('stats'), introEl = $('intro');
+const introCanvas = $('intro3d'), capEl = $('caption'), flashEl = $('flash');
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function toPixels(c) {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  const out = new Uint32Array(c.width * c.height);
+  for (let i = 0, j = 0; i < out.length; i++, j += 4)
+    out[i] = (d[j] | (d[j + 1] << 8) | (d[j + 2] << 16) | (d[j + 3] << 24)) >>> 0;
+  return out;
+}
+
+// ---------- settings (saved per browser in localStorage 'cc_opts') and key bindings ----------
+// opts: sound and music volume (0-1), mouse turn speed (1 = default), difficulty, field of view, key bindings
+// Key bindings (settings -> controls). Stored in opts.keys; Esc, the digit keys and the arrow keys for moving are fixed.
+const KEY_DEFAULTS = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', tl: 'ArrowLeft', tr: 'ArrowRight', fire: 'Space', next: 'KeyQ', map: 'KeyM', pause: 'KeyP', full: 'KeyF' };
+const KEY_NAMES = { fwd: 'Forward', back: 'Back', left: 'Step left', right: 'Step right', tl: 'Turn left', tr: 'Turn right', fire: 'Fire', next: 'Next weapon', map: 'Map', pause: 'Pause', full: 'Full screen' };
+const keyLabel = c => c.replace(/^Key|^Digit/, '').replace('Arrow', '').replace('Left', '←').replace('Right', '→').replace('Up', '↑').replace('Down', '↓').toUpperCase();
+const opts = Object.assign({ vol: 0.7, sens: 1, music: 0.4, diff: 'normal', keys: {}, fov: 67, pal: 'normal' }, (() => { try { return JSON.parse(localStorage.getItem('cc_opts')) || {}; } catch (e) { return {}; } })());
+// Map and marker colours. The high-contrast set avoids telling things apart by red against green alone
+// (enemies orange, potions blue, traps magenta) and brightens the hit wedge.
+const PALS = {
+  normal: { you: '#ffe14d', foe: '#f44', boss: '#c0f', stairs: '#e8d9a0', lock: '#e0a020', key: '#fd0', secret: '#4dd', trap: '#a33',
+    potion: '#4f4', crate: '#e0b737', ammo: '#aab', drop: '#aab', armour: '#8cf', fury: '#f80', ward: '#fff', hit: '255,40,30' },
+  contrast: { you: '#ffffff', foe: '#ff9d00', boss: '#ff3df2', stairs: '#fff27a', lock: '#b57a00', key: '#ffe600', secret: '#00e5ff', trap: '#e040fb',
+    potion: '#3aa0ff', crate: '#c9a227', ammo: '#b8bcc8', drop: '#b8bcc8', armour: '#9be7ff', fury: '#ffd08a', ward: '#ffffff', hit: '255,235,60' }
+};
+const PAL = () => PALS[opts.pal] || PALS.normal;
+const K = Object.assign({}, KEY_DEFAULTS, opts.keys);          // the live bindings
+const setFov = deg => { opts.fov = Math.max(55, Math.min(100, deg)); FOV_PLANE = Math.tan(opts.fov * Math.PI / 360); };
+setFov(opts.fov);
+let padFire = false;                                          // the test pad's fire button, whatever the keyboard binding
+// ---------- procedural textures ----------
+function makeWall(hue, sat, light, mortar, bw, bh) {
+  const c = mk(64, 64), g = c.getContext('2d');
+  g.fillStyle = mortar; g.fillRect(0, 0, 64, 64);
+  for (let y = 0, row = 0; y < 64; y += bh, row++) {
+    const off = row % 2 ? bw / 2 : 0;
+    for (let x = -bw; x < 64; x += bw) {
+      g.fillStyle = `hsl(${hue + rnd(-4, 4)},${sat + rnd(-5, 5)}%,${light + rnd(-6, 6)}%)`;
+      g.fillRect(x + off + 1, y + 1, bw - 2, bh - 2);
+    }
+  }
+  for (let i = 0; i < 260; i++) {
+    g.fillStyle = `rgba(0,0,0,${rnd(0, 0.22)})`;
+    g.fillRect(rnd(0, 62), rnd(0, 62), 2, 2);
+  }
+  return toPixels(c);
+}
+function doorTex() {
+  const c = mk(64, 64), g = c.getContext('2d');
+  g.fillStyle = '#4a2b15'; g.fillRect(0, 0, 64, 64);
+  for (let x = 0; x < 64; x += 8) {
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 1, 64);
+    g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x + 2, 0, 2, 64);
+  }
+  g.fillStyle = '#2a2a30'; g.fillRect(0, 14, 64, 3); g.fillRect(0, 40, 64, 3);
+  g.fillStyle = '#c9a227'; g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64); g.fillRect(62, 0, 2, 64);
+  g.beginPath(); g.arc(32, 27, 4, 0, Math.PI * 2); g.fill();
+  return toPixels(c);
+}
+function monsterTex(body, horns) {
+  const c = mk(32, 32), g = c.getContext('2d');
+  if (horns) {
+    g.fillStyle = '#e8e0c8';
+    g.beginPath(); g.moveTo(8, 9); g.lineTo(5, 1); g.lineTo(12, 7); g.fill();
+    g.beginPath(); g.moveTo(24, 9); g.lineTo(27, 1); g.lineTo(20, 7); g.fill();
+  }
+  g.fillStyle = body; g.beginPath(); g.ellipse(16, 14, 9, 10, 0, 0, Math.PI * 2); g.fill();
+  g.fillRect(9, 22, 5, 8); g.fillRect(18, 22, 5, 8);
+  g.fillStyle = '#000'; g.fillRect(10, 12, 4, 4); g.fillRect(18, 12, 4, 4);
+  g.fillStyle = '#f22'; g.fillRect(11, 13, 2, 2); g.fillRect(19, 13, 2, 2);
+  g.fillStyle = '#300'; g.fillRect(12, 20, 8, 2);
+  return toPixels(c);
+}
+// ---- placeholder monster sprites (32x32, drawn by hand) ----
+function ratTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.strokeStyle = '#7d5f5f'; g.lineWidth = 1.5;               // tail hanging down behind
+  g.beginPath(); g.moveTo(16, 29); g.quadraticCurveTo(29, 30, 27, 17); g.stroke();
+  g.fillStyle = '#4a3a3a'; g.fillRect(9, 25, 3, 5); g.fillRect(20, 25, 3, 5);   // feet
+  g.fillStyle = '#6e5a58'; g.beginPath(); g.ellipse(16, 21, 9, 7, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#8f7a76'; g.beginPath(); g.ellipse(16, 22, 5, 3, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#6e5a58';
+  g.beginPath(); g.arc(9, 9, 3.5, 0, Math.PI * 2); g.arc(23, 9, 3.5, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#c98a84';
+  g.beginPath(); g.arc(9, 9, 1.8, 0, Math.PI * 2); g.arc(23, 9, 1.8, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#6e5a58'; g.beginPath(); g.ellipse(16, 14, 7, 6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#7e6a68'; g.beginPath(); g.ellipse(16, 18, 3, 2, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f22'; g.fillRect(12, 12, 2, 2); g.fillRect(18, 12, 2, 2);
+  g.fillStyle = '#000'; g.fillRect(15, 17, 2, 1);
+  g.fillStyle = '#f0ecd8'; g.fillRect(15, 19, 1, 2); g.fillRect(16, 19, 1, 2);   // big front teeth
+  return toPixels(c);
+}
+function flameTex() {
+  // a fireball with a face: flickering tongues on top, glowing core, angry eyes, jagged mouth
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#ff7a1a';
+  g.beginPath(); g.moveTo(6, 16); g.lineTo(9, 4); g.lineTo(12, 13); g.lineTo(16, 1); g.lineTo(20, 13); g.lineTo(23, 4); g.lineTo(26, 16); g.closePath(); g.fill();
+  const grd = g.createRadialGradient(16, 18, 2, 16, 18, 13);
+  grd.addColorStop(0, '#fff7a0'); grd.addColorStop(0.55, '#ff8a20'); grd.addColorStop(1, 'rgba(255,60,0,0.6)');
+  g.fillStyle = grd; g.beginPath(); g.ellipse(16, 18, 11, 11, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3a0800'; g.fillRect(9, 13, 5, 1); g.fillRect(18, 13, 5, 1);   // brows
+  g.fillRect(10, 15, 3, 4); g.fillRect(19, 15, 3, 4);                          // eyes
+  g.fillStyle = '#fff7a0'; g.fillRect(11, 16, 1, 1); g.fillRect(20, 16, 1, 1); // glints
+  g.fillStyle = '#3a0800';
+  g.beginPath(); g.moveTo(11, 23); g.lineTo(21, 23); g.lineTo(19, 26); g.lineTo(16, 24); g.lineTo(13, 26); g.closePath(); g.fill();
+  return toPixels(c);
+}
+function demonTex() {
+  // Doom-style imp: hunched, bone horns, spined shoulders, clawed arms, glowing yellow eyes
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#d9d0b4';
+  g.beginPath(); g.moveTo(9, 9); g.lineTo(6, 1); g.lineTo(13, 7); g.fill();
+  g.beginPath(); g.moveTo(23, 9); g.lineTo(26, 1); g.lineTo(19, 7); g.fill();
+  g.fillStyle = '#4a2010';
+  g.beginPath(); g.moveTo(6, 12); g.lineTo(1, 9); g.lineTo(7, 16); g.fill();
+  g.beginPath(); g.moveTo(26, 12); g.lineTo(31, 9); g.lineTo(25, 16); g.fill();
+  g.fillStyle = '#7a3520'; g.beginPath(); g.ellipse(16, 16, 10, 9, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#8a4028'; g.fillRect(4, 16, 4, 11); g.fillRect(24, 16, 4, 11);
+  g.fillStyle = '#e8e0c8'; g.fillRect(3, 27, 2, 3); g.fillRect(5, 27, 2, 3); g.fillRect(25, 27, 2, 3); g.fillRect(27, 27, 2, 3);
+  g.fillStyle = '#4a2010'; g.fillRect(9, 23, 5, 8); g.fillRect(18, 23, 5, 8);
+  g.fillStyle = '#ffd21a'; g.fillRect(10, 11, 4, 3); g.fillRect(18, 11, 4, 3);
+  g.fillStyle = '#1a0500'; g.fillRect(12, 20, 8, 3);
+  g.fillStyle = '#f0e8d0'; g.fillRect(13, 20, 1, 2); g.fillRect(15, 20, 1, 2); g.fillRect(17, 20, 1, 2); g.fillRect(19, 20, 1, 2);
+  return toPixels(c);
+}
+function angelTex() {
+  // winged figure in a white robe with a gold halo, Megami Tensei-style
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#e8ecf4';
+  g.beginPath(); g.moveTo(12, 14); g.lineTo(1, 3); g.lineTo(2, 9); g.lineTo(0, 14); g.lineTo(4, 20); g.lineTo(10, 22); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(20, 14); g.lineTo(31, 3); g.lineTo(30, 9); g.lineTo(32, 14); g.lineTo(28, 20); g.lineTo(22, 22); g.closePath(); g.fill();
+  g.fillStyle = '#b8c2d6';
+  g.beginPath(); g.moveTo(10, 16); g.lineTo(3, 11); g.lineTo(6, 19); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(22, 16); g.lineTo(29, 11); g.lineTo(26, 19); g.closePath(); g.fill();
+  g.strokeStyle = '#ffe27a'; g.lineWidth = 1; g.beginPath(); g.ellipse(16, 3, 6, 2, 0, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#f4f1e6'; g.beginPath(); g.moveTo(12, 12); g.lineTo(20, 12); g.lineTo(23, 30); g.lineTo(9, 30); g.closePath(); g.fill();
+  g.fillStyle = '#c9a227'; g.fillRect(15, 12, 2, 18);
+  g.fillStyle = '#f0d2b0'; g.beginPath(); g.arc(16, 9, 4, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#d8c9a8'; g.fillRect(12, 5, 8, 2);
+  g.fillStyle = '#4aa8ff'; g.fillRect(14, 9, 1, 1); g.fillRect(17, 9, 1, 1);
+  g.fillStyle = '#f0d2b0'; g.fillRect(9, 14, 2, 8); g.fillRect(21, 14, 2, 8);
+  return toPixels(c);
+}
+function potionTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#bbb'; g.fillRect(13, 4, 6, 5);
+  g.fillStyle = '#8a5a2b'; g.fillRect(12, 2, 8, 3);
+  g.fillStyle = '#d12c2c'; g.beginPath(); g.arc(16, 21, 8, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(12, 18, 2, 5);
+  return toPixels(c);
+}
+function crateTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#7a4e22'; g.fillRect(4, 8, 24, 20);
+  g.fillStyle = '#4a2e12'; g.fillRect(4, 8, 24, 2); g.fillRect(4, 26, 24, 2);
+  g.fillStyle = '#e0b737'; g.fillRect(4, 15, 24, 2);
+  g.fillStyle = '#ffe27a'; g.fillRect(14, 12, 4, 4);
+  return toPixels(c);
+}
+function ammoTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  for (let i = 0; i < 3; i++) {
+    g.fillStyle = '#c0c4cc'; g.fillRect(6 + i * 7, 10, 4, 14);
+    g.fillStyle = '#c99a2a'; g.fillRect(6 + i * 7, 10, 4, 4);
+  }
+  return toPixels(c);
+}
+function arrowTex() {
+  // a bolt flying away from the player: shaft stands upright, steel point at the top, red fletching at the back
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#c8a878'; g.fillRect(15, 9, 2, 20);                 // wooden shaft
+  g.fillStyle = '#e0c8a0'; g.fillRect(15, 9, 1, 20);                 // lit edge
+  g.fillStyle = '#d8d8e0';
+  g.beginPath(); g.moveTo(16, 1); g.lineTo(20, 9); g.lineTo(12, 9); g.closePath(); g.fill();   // steel head
+  g.fillStyle = '#a8a8b0'; g.fillRect(15, 3, 1, 6);                  // head shading
+  g.fillStyle = '#d33';
+  g.beginPath(); g.moveTo(15, 22); g.lineTo(8, 30); g.lineTo(15, 27); g.closePath(); g.fill();   // left fletching
+  g.beginPath(); g.moveTo(17, 22); g.lineTo(24, 30); g.lineTo(17, 27); g.closePath(); g.fill();  // right fletching
+  return toPixels(c);
+}
+function magicTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 1, 16, 16, 15);
+  grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.4, '#c060ff'); grd.addColorStop(1, 'rgba(120,0,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 32, 32);
+  return toPixels(c);
+}
+function stairsTex() {
+  // a flight seen head-on: each step is a band across the view, the far steps higher and narrower
+  const c = mk(32, 32), g = c.getContext('2d');
+  g.fillStyle = '#1a1714'; g.fillRect(6, 6, 20, 26);          // dark stairwell behind the steps
+  for (let i = 0; i < 5; i++) {
+    const w = 28 - i * 4, x = (32 - w) / 2, y = 29 - i * 5;
+    const shade = 150 - i * 14;
+    g.fillStyle = `rgb(${shade},${shade - 6},${shade - 16})`;
+    g.fillRect(x, y, w, 4);                                   // riser face
+    g.fillStyle = `rgb(${shade + 40},${shade + 36},${shade + 24})`;
+    g.fillRect(x, y - 1, w, 1);                               // lit tread edge
+  }
+  g.fillStyle = '#3a3428';
+  g.fillRect(1, 6, 1, 24); g.fillRect(30, 6, 1, 24);          // side walls
+  return toPixels(c);
+}
+function fireTex() {
+  const c = mk(32, 32), g = c.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 2, 16, 16, 15);
+  grd.addColorStop(0, '#fff7a0'); grd.addColorStop(0.5, '#ff8a20'); grd.addColorStop(1, 'rgba(255,60,0,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 32, 32);
+  return toPixels(c);
+}
+const WALLS = [null,
+  makeWall(14, 42, 30, '#2a1812', 16, 8),
+  makeWall(215, 6, 42, '#17191d', 32, 16),
+  makeWall(98, 20, 26, '#0c160c', 16, 16),
+  doorTex()];
+// ---- surface themes: photo tiles from assets.js (art/tiles, packed by tools/pack_assets.py) ----
+// Each theme names the tiles for wall types 1-3, the door, the floor and the ceiling. Missing tiles keep the drawn ones.
+const THEMES = [
+  { upTo: 0,  walls: ['stone_blocks', 'stone_arches', 'stone_blocks'], door: 'wood_door', floor: 'flagstone', ceil: 'dark_panel' },   // entrance
+  { upTo: 10, walls: ['stone_blocks', 'stone_arches', 'skull_catacomb'], door: 'wood_door', floor: 'flagstone', ceil: 'dark_panel' }, // crypt
+  { upTo: 20, walls: ['sewer_brick', 'sewer_corridor', 'cracked_plaster'], door: 'iron_door', floor: 'cobbles', ceil: 'rust' },      // sewers
+  { upTo: 30, walls: ['skull_catacomb', 'iron_bars', 'stone_blocks'], door: 'iron_door', floor: 'cobbles', ceil: 'mossy_relief' }, // catacombs
+  { upTo: 40, walls: ['castle_stone', 'castle_banner', 'stone_arches'], door: 'wood_door', floor: 'carpet', ceil: 'dark_panel' },   // castle halls
+  { upTo: 50, walls: ['foundry_rust', 'lava_iron', 'iron_bars'], door: 'iron_door', floor: 'grate', ceil: 'rust' },                // foundry
+  { upTo: 60, walls: ['marble', 'window_day', 'marble'], door: 'wood_door', floor: 'marble_floor', sky: 'day' },                    // sky tower: no roof
+  { upTo: 70, walls: ['dusk_marble', 'window_dusk', 'dusk_marble'], door: 'iron_door', floor: 'marble_floor', sky: 'dusk' },        // upper air: stars come out
+  { upTo: 80, walls: ['hull', 'porthole', 'hull'], door: 'iron_door', floor: 'deck', sky: 'space' },                                 // the void: open space above
+  { upTo: 90, walls: ['alien_wall', 'alien_bones', 'porthole'], door: 'iron_door', floor: 'alien_floor', sky: 'space' },             // alien spire
+  { upTo: 999, walls: ['red_rock', 'red_relief', 'red_rock'], door: 'iron_door', floor: 'red_ground', sky: 'alien' }                // the other world
+];
+const TILEPX = {};                     // name -> Uint32Array(64*64) once decoded
+WALLS[LOCKED] = new Uint32Array(4096); WALLS[SECRET] = new Uint32Array(4096); WALLS[DARTS] = new Uint32Array(4096);   // derived from the theme in applyTheme()
+const DRAWN = WALLS.map(w => w && w.slice());   // procedural fallbacks
+let FLOOR_TEX = null, CEIL_TEX = null, themeLv = 0, SKY_PX = null;
+// ---- open-sky panoramas for the high zones (no ceiling). 1536 x 100 strip wrapped round the player, drawn once ----
+const SKY_W = 1536, SKY_H = 100, SKIES = {};   // wide enough that stars stay round (66° view = ~280 px of strip)
+function skyPano(kind) {
+  if (SKIES[kind]) return SKIES[kind];
+  const c = mk(SKY_W, SKY_H), g = c.getContext('2d');
+  const grad = (stops) => { const l = g.createLinearGradient(0, 0, 0, SKY_H); stops.forEach(([o, col]) => l.addColorStop(o, col)); g.fillStyle = l; g.fillRect(0, 0, SKY_W, SKY_H); };
+  let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const stars = (n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = `rgba(255,255,240,${a * (0.4 + r() * 0.6)})`; g.fillRect(r() * SKY_W | 0, r() * SKY_H * 0.9 | 0, 1, 1); } };
+  const disc = (x, y, rad, col, ring) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill(); if (ring) { g.strokeStyle = ring; g.lineWidth = 2; g.beginPath(); g.ellipse(x, y, rad * 1.8, rad * 0.45, -0.3, 0, 7); g.stroke(); } };
+  if (kind === 'day') {
+    grad([[0, '#3d6fc4'], [0.7, '#8fb8ea'], [1, '#d8e6f4']]);
+    for (let i = 0; i < 30; i++) { const x = r() * SKY_W, y = 40 + r() * 50, w = 20 + r() * 40; g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.ellipse(x, y, w, w * 0.28, 0, 0, 7); g.fill(); }
+  } else if (kind === 'dusk') {
+    grad([[0, '#0c0b2a'], [0.55, '#3b2a6a'], [0.85, '#c0607a'], [1, '#f2a070']]); stars(480, 0.8);
+    disc(1140, 30, 7, '#f4f0dc');
+  } else if (kind === 'space') {
+    grad([[0, '#02020a'], [1, '#0a0a22']]); stars(1500, 1);
+    g.fillStyle = 'rgba(120,80,200,0.10)'; for (let x = 0; x < SKY_W; x += 2) g.fillRect(x, 30 + Math.sin(x / 40) * 18, 2, 26);   // milky band
+    disc(420, 45, 22, '#4a7fd8'); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(404, 40, 26, 4);   // the Earth, far below now
+    disc(1200, 24, 9, '#c9b28a', '#e6d8b0');
+  } else {   // alien: red sky, two moons, a ringed giant
+    grad([[0, '#2a0610'], [0.6, '#8a2a20'], [1, '#e08850']]); stars(240, 0.5);
+    disc(270, 34, 26, '#d8a070', '#f0c890'); disc(900, 22, 8, '#f6e6d0'); disc(990, 40, 5, '#b8d0e8');
+  }
+  return (SKIES[kind] = toPixels(c));
+}
+function applyTheme(lv) {
+  themeLv = lv;
+  const t = THEMES.find(t => lv <= t.upTo) || THEMES[THEMES.length - 1];
+  const names = [null, ...t.walls, t.door];
+  for (let i = 1; i < names.length; i++) WALLS[i].set(TILEPX[names[i]] || DRAWN[i]);
+  for (let i = 0; i < 4096; i++) {                           // locked door: the door, gilded, with a lock plate; secret wall: wall 1 a shade darker
+    const d = WALLS[DOOR][i], x = i & 63, y = i >> 6, plate = x > 24 && x < 39 && y > 24 && y < 41, hole = x > 29 && x < 34 && y > 29 && y < 37;
+    const r = d & 255, g = d >> 8 & 255, b = d >> 16 & 255;
+    WALLS[LOCKED][i] = hole ? 0xff101010 : plate ? 0xff30b0e0 : (0xff000000 | Math.min(255, r * 1.2 + 40) | Math.min(255, g * 1.05 + 18) << 8 | (b * 0.55) << 16) >>> 0;
+    const w = WALLS[1][i];
+    const slot = y > 26 && y < 38 && (x > 12 && x < 22 || x > 27 && x < 37 || x > 42 && x < 52), rim = y > 24 && y < 40 && x > 10 && x < 54;   // dart wall: three dark slots in an iron band
+    WALLS[DARTS][i] = slot ? 0xff080808 : rim ? 0xff5a5450 : w;
+    WALLS[SECRET][i] = (0xff000000 | ((w & 255) * 0.85) | ((w >> 8 & 255) * 0.85) << 8 | ((w >> 16 & 255) * 0.85) << 16) >>> 0;
+  }
+  FLOOR_TEX = TILEPX[t.floor] || null; CEIL_TEX = TILEPX[t.ceil] || null; SKY_PX = t.sky ? skyPano(t.sky) : null;
+}
+if (window.TILES) for (const k in TILES) {
+  const im = new Image();
+  im.onload = () => { const c = mk(64, 64); c.getContext('2d').drawImage(im, 0, 0, 64, 64); TILEPX[k] = toPixels(c); applyTheme(themeLv); };
+  im.src = TILES[k];
+}
+const SPR = {
+  ghoul: monsterTex('#5f8f3a'), skel: monsterTex('#c9c3b0'),
+  imp: demonTex(), rat: ratTex(), flame: flameTex(), angel: angelTex(), boss: monsterTex('#6d2fa0', true),
+  potion: potionTex(), crate: crateTex(), ammo: ammoTex(), fire: fireTex(), stairs: stairsTex(), arrow: arrowTex(), magic: magicTex()
+};
+
+// Enemy sprites (Freedoom and Blasphemer art, packed into assets.js as window.MONSTERS by tools/pack_assets.py).
+// MON_PX[kind] = { frames: [Uint32Array with .w .h .ox .oy], k, walk, atk, pain, die } once every frame has decoded;
+// (ox, oy) is the point of the frame that stands on the floor and k is wall heights per sprite pixel.
+// The drawn 32x32 SPR sprites stay as the fallback when assets.js is missing.
+const MON_PX = {};
+if (window.MONSTERS) for (const k in MONSTERS) {
+  const M = MONSTERS[k], frames = []; let left = M.frames.length;
+  M.frames.forEach(([src, ox, oy], i) => {
+    const im = new Image();
+    im.onload = () => {
+      const c = mk(im.width, im.height); c.getContext('2d').drawImage(im, 0, 0);
+      const px = toPixels(c); px.w = im.width; px.h = im.height; px.ox = ox; px.oy = oy; frames[i] = px;
+      if (--left === 0) MON_PX[k] = { frames, k: M.k, walk: M.walk, atk: M.atk, pain: M.pain, die: M.die };
+    };
+    im.src = src;
+  });
+}
+// Small sprite sets: enemy projectiles (window.SHOTS, centred at eye height) and pickups (window.ITEMS, on the floor).
+const SHOT_PX = {}, ITEM_PX = {};
+function loadSet(SET, DST, onFloor) {
+  if (SET) for (const k in SET) {
+    const S = SET[k], frames = []; let left = S.frames.length;
+    S.frames.forEach((src, i) => {
+      const im = new Image();
+      im.onload = () => {
+        const c = mk(im.width, im.height); c.getContext('2d').drawImage(im, 0, 0);
+        const px = toPixels(c); px.w = im.width; px.h = im.height; px.ox = im.width / 2;
+        px.oy = S.hang ? 1 / S.k : onFloor ? im.height : im.height / 2 + 0.5 / S.k; frames[i] = px;   // hung from the ceiling, stood on the floor, or at eye height
+        if (--left === 0) DST[k] = { frames, k: S.k };
+      };
+      im.src = src;
+    });
+  }
+}
+const PROP_PX = {};
+loadSet(window.SHOTS, SHOT_PX, false); loadSet(window.ITEMS, ITEM_PX, true); loadSet(window.PROPS, PROP_PX, true);
+const ATK_T = 0.4, DIE_FPS = 9, WALK_FPS = 6;   // attack animation length (s), death and walk frame rates
+
+// Spike traps: an iron plate set in a corridor floor. The spikes are out for TRAP_UP seconds of every TRAP_CYCLE
+// (each trap has its own offset); standing on one while they are out hurts.
+const TRAP_CYCLE = 3.2, TRAP_UP = 1.2, TRAP_DMG = 8;
+const trapUp = tr => ((performance.now() / 1000 + tr.ph) % TRAP_CYCLE) < TRAP_UP;
+function trapTex(up) {
+  const c = mk(64, 64), g = c.getContext('2d');
+  g.fillStyle = '#2b2a2e'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#4a474c'; g.fillRect(3, 3, 58, 58);
+  g.fillStyle = '#18171a'; g.fillRect(0, 0, 64, 2); g.fillRect(0, 62, 64, 2); g.fillRect(0, 0, 2, 64); g.fillRect(62, 0, 2, 64);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const cx = 10 + x * 15, cy = 10 + y * 15;
+    g.fillStyle = '#0c0b0d'; g.beginPath(); g.arc(cx, cy, 4, 0, 7); g.fill();
+    if (up) { g.fillStyle = '#d9dde4'; g.beginPath(); g.moveTo(cx - 4, cy + 3); g.lineTo(cx, cy - 7); g.lineTo(cx + 4, cy + 3); g.fill();
+      g.fillStyle = '#8a1c14'; g.fillRect(cx - 1, cy - 6, 2, 3); }
+  }
+  return toPixels(c);
+}
+const TRAP_TEX = [trapTex(false), trapTex(true)];
+
+// ---------- state ----------
+const keys = {};
+const touchState = { joyX: 0, joyY: 0 };   // filled from RQPad.state.move in rqpad.js
+let W = 0, H = 0, map, explored, P, monsters = [], items = [], shots = [], pshots = [], bolts = [], stairsPos = null;
+let darts = [];                                               // dart walls: { x, y, dx, dy, t } firing down a corridor
+let traps = [], trapAt = null, trapHurtT = 0;                // spike traps: list, lookup by cell (index + 1), hurt throttle
+let props = [], secrets = { total: 0, found: 0 }, lockMsgT = 0;   // scenery, this floor's secret rooms, 'locked' message throttle
+const cycleMap = () => { mapOn = (Number(mapOn) + 1) % 3; showMsg(['Map off', 'Minimap', 'Full map'][mapOn]); };
+let opened = [];                                              // cells of secret walls and locked doors you have opened on this floor
+let level = 0, kills = 0, running = false, msgT = 0, mapOn = 1;   // mapOn: 0 off, 1 corner minimap, 2 full map
+let pendingWin = 0, sealMsgT = 0, introActive = false, introSeen = false, endActive = false;
+const newPlayer = () => ({
+  x: 3.5, y: 4.5, a: -Math.PI / 2, hp: 100, maxHp: 100, fire: 0, flash: 0, hurt: 0, anim: 0, swingT: 9, hitFlash: 0,
+  weapon: 'fist', owned: { fist: true },                      // you start with bare fists; guns come from weapon crates
+  ammo: Object.fromEntries(Object.keys(WEAPON_FLOOR).map(w => [w, 0])), armor: 0, fury: 0, ward: 0, nova: 0
+});
+
+// ---------- level generation ----------
+// which monster a random room gets on this floor
+// Each zone has its own enemy mix: [kind, weight]. Early floors of the crypt hold back the tougher kinds.
+const ROSTERS = [
+  [['rat', 4], ['ghoul', 3], ['skel', 2], ['imp', 2], ['flame', 1]],                  // crypt
+  [['slime', 4], ['rat', 4], ['ghoul', 2], ['imp', 2]],                               // sewers
+  [['skel', 4], ['ghoul', 3], ['flame', 2], ['angel', 1]],                            // catacombs
+  [['knight', 4], ['skel', 2], ['imp', 2], ['angel', 1]],                             // castle halls
+  [['golem', 2], ['flame', 4], ['imp', 2], ['knight', 2]],                            // foundry
+  [['harpy', 4], ['angel', 3], ['flame', 2], ['knight', 1]],                          // sky tower
+  [['harpy', 4], ['angel', 3], ['golem', 1], ['eye', 1], ['trooper', 2]],             // upper air
+  [['alien', 3], ['eye', 2], ['trooper', 3], ['sarge', 2], ['harpy', 1]],             // the void
+  [['horror', 2], ['eye', 2], ['alien', 2], ['gunner', 2], ['spider', 1], ['harpy', 2]],   // alien spire
+  [['horror', 2], ['alien', 2], ['eye', 1], ['spider', 2], ['gunner', 1], ['golem', 1], ['slime', 2], ['skel', 2]]   // the other world
+];
+// Scenery per zone: [standing props (block movement), props hung from the ceiling (roofed zones only)].
+const ZONE_PROPS = [
+  [['srtc', 'brpl'], ['skh1']], [['barl', 'srtc'], ['mos1']], [['srtc', 'stgs'], ['skh1', 'hcor']], [['kfr1', 'smpl'], ['chdl']],
+  [['fcan', 'kfr1'], []], [['smpl', 'cbra'], []], [['smpl', 'tblu'], []], [['col1', 'elec', 'tblu'], []],
+  [['col3', 'tgrn', 'elec'], []], [['stgl', 'tre2', 'tred'], []]
+];
+function pickKind(lv) {
+  let list = ROSTERS[zoneOf(lv)];
+  if (lv < 4) list = list.filter(([k]) => k === 'rat' || k === 'ghoul');             // gentle start while you only have fists
+  const total = list.reduce((a, [, w]) => a + w, 0);
+  let r = Math.random() * total;
+  for (const [k, w] of list) { if ((r -= w) < 0) return k; }
+  return list[0][0];
+}
+// What each enemy is. hp / dmg are base values (scaled per zone); speed 1 is a walk.
+//  ranged: throws `shot` projectiles (burst = how many, fanned out); keep: ranged enemies hold about this distance
+//  lunge: charges in a straight line now and then; weave: drifts side to side (flyers); fly: bobs in the air
+//  heavy: mostly shrugs off knockback
+const KIND = {
+  rat:    { hp: 30,  speed: 1.5, dmg: 3,  lunge: true },                                              // flesh worm: weak, darts at you
+  ghoul:  { hp: 65,  speed: 0.75, dmg: 6 },                                                           // hooded dead: slow, steady
+  skel:   { hp: 75,  speed: 1.35, dmg: 6,  weave: 0.35 },                                             // sabreclaw: quick slasher
+  imp:    { hp: 55,  speed: 1.0, dmg: 4,  ranged: true, shot: 'fire' },                               // serpentipede: fireballs, then claws
+  flame:  { hp: 40,  speed: 1.0, dmg: 4,  ranged: true, shot: 'fire', keep: 3, weave: 0.6, fly: true },
+  angel:  { hp: 95,  speed: 0.9, dmg: 6,  ranged: true, shot: 'bolt', burst: 3, keep: 4.5, weave: 0.4, fly: true },   // wizard: fan of three
+  slime:  { hp: 70,  speed: 1.0, dmg: 6,  lunge: true },                                              // red beast: pounces
+  knight: { hp: 120, speed: 0.9, dmg: 9,  heavy: true },                                              // undead warrior: armoured
+  golem:  { hp: 170, speed: 0.65, dmg: 9,  ranged: true, shot: 'heavy', heavy: true },                // steel brute: slow, hits hard both ways
+  harpy:  { hp: 40,  speed: 1.7, dmg: 5,  lunge: true, weave: 0.7, fly: true },                       // gargoyle: swoops
+  alien:  { hp: 65,  speed: 1.1, dmg: 6,  ranged: true, shot: 'spit' },
+  eye:    { hp: 85,  speed: 0.7, dmg: 6,  ranged: true, shot: 'spit', keep: 3.5, weave: 0.3, fly: true },
+  horror: { hp: 170, speed: 0.6, dmg: 9,  ranged: true, shot: 'blob', burst: 2, keep: 4, heavy: true },      // twin cannons
+  trooper:{ hp: 50,  speed: 1.0, dmg: 5,  ranged: true, shot: 'bolt', keep: 3 },                      // dead soldier: plinks from range
+  sarge:  { hp: 75,  speed: 1.0, dmg: 5,  ranged: true, shot: 'spit', burst: 3 },                     // shotgun soldier: a fan up close
+  gunner: { hp: 95,  speed: 0.9, dmg: 5,  ranged: true, shot: 'bolt', burst: 3, keep: 3.5, heavy: true },   // heavy gunner: tight bursts
+  spider: { hp: 150, speed: 0.8, dmg: 7,  ranged: true, shot: 'bolt', burst: 2, keep: 4, heavy: true }, // machine spider
+  pod:    { hp: 15,  speed: 0, dmg: 0, prop: true }                                                   // explosive pod: not an enemy, bursts when shot
+};
+// Each zone's boss has its own moves on top of walking at you and shooting:
+//  burst: shots per volley; ring: [shots, every s] fired in all directions; stream: [shots, gap s] rapid fire in place of a volley
+//  summon: [kind, most alive, every s]; lunge: charges; blink: [every s] vanishes and reappears beside you
+//  phase2: changes applied once, at half health (with phase2Msg, a burst of shots in every direction and a flash)
+const BOSS_MOVES = [
+  { shot: 'bolt',   summon: ['ghoul', 2, 12] },                              // the Warden raises the dead
+  { shot: 'spit',   burst: 3 },                                             // the Sewer King spits a fan
+  { shot: 'bolt',   ring: [6, 7], fly: true,                               // the Hollow Queen: rings of bolts,
+    phase2: { summon: ['flame', 3, 8] }, phase2Msg: 'The Hollow Queen screams, and burning skulls answer' },   // then skulls
+  { shot: 'heavy',  lunge: true },                                          // the Iron Castellan charges
+  { shot: 'fire',   burst: 3, lunge: true,                                  // the Forgeheart: charges and fans fire,
+    phase2: { burst: 5, speed: 0.95 }, phase2Msg: 'The Forgeheart burns white-hot' },                        // then wider fans, faster
+  { shot: 'fire',   summon: ['flame', 4, 7], fly: true, weave: 0.4 },       // the Storm Herald spits out flames
+  { shot: 'heavy',  burst: 2, ring: [6, 8] },                               // the Skywyrm
+  { shot: 'bolt',   stream: [6, 0.2],                                      // the Void Archon: a hose of bolts,
+    phase2: { stream: [8, 0.18], blink: [9] }, phase2Msg: 'The Void Archon slips out of step with the world' },   // then it teleports
+  { shot: 'fire',   blink: [10], ring: [8, 8] },                            // the Star-Eater steps through space
+  { shot: 'rocket', burst: 3, summon: ['horror', 1, 20], ring: [10, 9],
+    phase2: { burst: 4, speed: 1.0, ring: [14, 7], stream: null }, phase2Msg: 'The Titan tears off its armour and comes for you' }    // the Spire Titan: rockets, rings and reinforcements
+];
+// What each enemy is called when it kills you (bosses use their own names).
+const FOE_NAME = { rat: 'a flesh worm', ghoul: 'a hooded ghoul', skel: 'a sabreclaw', imp: 'a serpentipede', flame: 'a burning skull',
+  angel: 'a wizard', slime: 'a red beast', knight: 'an undead knight', golem: 'a steel brute', harpy: 'a gargoyle', alien: 'a mutant',
+  eye: 'a floating horror', horror: 'a cannon horror', trooper: 'a dead trooper', sarge: 'a shotgun sergeant', gunner: 'a heavy gunner',
+  spider: 'a machine spider' };
+const foeName = m => !m ? 'a dart' : m.boss ? m.name : FOE_NAME[m.kind] || 'something';
+const SPR_FALLBACK = { trooper: 'imp', sarge: 'imp', gunner: 'imp', spider: 'ghoul', slime: 'ghoul', knight: 'skel', golem: 'ghoul', harpy: 'imp', alien: 'imp', eye: 'flame', horror: 'ghoul' };
+function spawnMonster(x, y, kind, lv) {
+  const m = { x, y, kind, dead: false, hurt: 0, mcool: 0, rcool: rnd(1, 2.5), wander: 0, wa: 0, ph: rnd(0, 6.28),
+    boss: false, name: '', ranged: false, scale: 1, speed: 1, dmg: 5, hp: 55, maxHp: 55, tex: SPR.ghoul,
+    shot: 'fire', burst: 1, keep: 0, weave: 0, lungeCd: rnd(2, 4), lungeT: 0, animT: 0 };
+  if (kind === 'boss') Object.assign(m, { boss: true, name: BOSS_NAMES[lv], hp: Math.round(BOSS_HP[lv] * (opts.diff === 'hard' ? 1 : DF().hp)), tex: SPR.boss, scale: 2.4, speed: 0.75,
+    dmg: Math.round((8 + 1.6 * zoneOf(lv)) * bossDmgK()), ranged: true, heavy: true, ringT: 3, sumT: 5, blinkT: 4 }, BOSS_MOVES[zoneOf(lv)]);
+  else {
+    Object.assign(m, KIND[kind] || KIND.ghoul, { tex: SPR[SPR_FALLBACK[kind] || kind] || SPR.ghoul });
+    if (!m.prop) { m.hp = Math.round(m.hp * hpMul(lv)); m.dmg = Math.round(m.dmg * dmgMul(lv)); }     // zone scaling for regular enemies
+  }
+  m.maxHp = m.hp;
+  return m;
+}
+
+// Floor 0: the entrance hall. The tower door sits at the far end.
+function generateEntrance() {
+  applyTheme(0);
+  W = H = 7;
+  map = new Uint8Array(W * H).fill(2);
+  for (let y = 2; y <= 5; y++) for (let x = 1; x <= 5; x++) map[y * W + x] = 0;
+  map[1 * W + 3] = DOOR;
+  monsters = []; items = []; shots = []; pshots = []; floorAmmo = 1; props = []; secrets = { total: 0, found: 0 }; traps = []; trapAt = null; darts = [];
+  explored = new Uint8Array(W * H).fill(1);
+  P.x = 3.5; P.y = 4.5; P.a = -Math.PI / 2;
+}
+
+function generate(lv) {
+  applyTheme(lv);
+  W = H = (Math.min(41, 17 + lv * 4) | 1);
+  const idx = (x, y) => y * W + x;
+  map = new Uint8Array(W * H).fill(1);
+
+  // rooms of varied size, placed without touching, then joined by corridors
+  const rooms = [];
+  const target = Math.min(14, 6 + Math.floor(lv / 2));
+  for (let tries = 0; tries < 300 && rooms.length < target; tries++) {
+    const great = rooms.length > 1 && Math.random() < 0.12;      // now and then a great hall
+    const w = great ? 9 + ((Math.random() * 3) | 0) : 4 + ((Math.random() * 5) | 0), h = great ? 9 + ((Math.random() * 3) | 0) : 4 + ((Math.random() * 5) | 0);
+    const x0 = 1 + ((Math.random() * (W - w - 2)) | 0), y0 = 1 + ((Math.random() * (H - h - 2)) | 0);
+    const x1 = x0 + w - 1, y1 = y0 + h - 1;
+    const clash = rooms.some(r => !(x1 + 2 < r.x0 || r.x1 + 2 < x0 || y1 + 2 < r.y0 || r.y1 + 2 < y0));
+    if (clash) continue;
+    rooms.push({ x0, y0, x1, y1, cx: (x0 + x1) >> 1, cy: (y0 + y1) >> 1 });
+  }
+  let arena = null;
+  if (BOSS_NAMES[lv]) {                                      // a boss floor ends in an 11 x 11 arena: the last room in the chain, stairs in the middle
+    for (let tries = 0; tries < 400 && !arena; tries++) {
+      const x0 = 2 + ((Math.random() * (W - 15)) | 0), y0 = 2 + ((Math.random() * (H - 15)) | 0), x1 = x0 + 10, y1 = y0 + 10;
+      const r0 = rooms[0];
+      if (Math.hypot(x0 + 5 - r0.cx, y0 + 5 - r0.cy) < 14) continue;          // well away from where you start
+      for (let i = rooms.length - 1; i > 0; i--) { const r = rooms[i]; if (!(x1 + 2 < r.x0 || r.x1 + 2 < x0 || y1 + 2 < r.y0 || r.y1 + 2 < y0)) rooms.splice(i, 1); }
+      const r = rooms[0]; if (!(x1 + 2 < r.x0 || r.x1 + 2 < x0 || y1 + 2 < r.y0 || r.y1 + 2 < y0)) continue;
+      arena = { x0, y0, x1, y1, cx: x0 + 5, cy: y0 + 5, arena: true }; rooms.push(arena);
+    }
+  }
+  for (const r of rooms) for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) map[idx(x, y)] = 0;
+  // Room shapes: bigger rooms are not all boxes. Corners are cut off (an eight-sided room) or filled in (a cross).
+  // Corridors always run to a room's centre lines, so reshaping corners can never close a way in.
+  for (const r of rooms) {
+    const w = r.x1 - r.x0 + 1, h = r.y1 - r.y0 + 1, pick = Math.random();
+    if (r === rooms[0] || Math.min(w, h) < 6) continue;
+    const corner = (n, test) => { for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) if (test(a, b)) {
+      map[idx(r.x0 + a, r.y0 + b)] = 1; map[idx(r.x1 - a, r.y0 + b)] = 1; map[idx(r.x0 + a, r.y1 - b)] = 1; map[idx(r.x1 - a, r.y1 - b)] = 1; } };
+    if (r.arena) { corner(3, (a, b) => a + b < 3); r.shape = 'round'; }
+    else if (pick < 0.3) { corner(Math.min(w, h) >= 8 ? 3 : 2, (a, b) => a + b < (Math.min(w, h) >= 8 ? 3 : 2)); r.shape = 'round'; }
+    else if (pick < 0.5 && Math.min(w, h) >= 7) { const n = Math.min(3, (Math.min(w, h) - 3) >> 1); corner(n, () => true); r.shape = 'cross'; }
+  }
+
+  // L-shaped corridor between two room centres
+  const carve = (ax, ay, bx, by) => {
+    for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) map[idx(x, ay)] = 0;
+    for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) map[idx(bx, y)] = 0;
+  };
+  // chain every room to the next so everything is reachable, then add a few extra loops
+  for (let i = 1; i < rooms.length; i++) carve(rooms[i - 1].cx, rooms[i - 1].cy, rooms[i].cx, rooms[i].cy);
+  for (let i = 0; i < rooms.length; i++) {
+    if (Math.random() > 0.35) continue;
+    const j = (Math.random() * rooms.length) | 0;
+    if (j !== i) carve(rooms[i].cx, rooms[i].cy, rooms[j].cx, rooms[j].cy);
+  }
+
+  // big halls get pillars set off the centre lines, so corridors still run through
+  for (const r of rooms) {
+    const w = r.x1 - r.x0 + 1, h = r.y1 - r.y0 + 1;
+    if (w >= 7 && h >= 7 && r.shape !== 'cross' && (r.arena || Math.random() < 0.6)) {      // the arena always has its four pillars for cover
+      for (const [px, py] of [[r.x0 + 2, r.y0 + 2], [r.x1 - 2, r.y0 + 2], [r.x0 + 2, r.y1 - 2], [r.x1 - 2, r.y1 - 2]]) map[idx(px, py)] = 1;
+    }
+  }
+
+  for (let i = 0; i < map.length; i++) if (map[i] === 1) map[i] = 1 + ((Math.random() * 3) | 0);
+
+  // stairs at the farthest reachable cell from the start (BFS)
+  const sRoom = rooms[0];                      // the player starts in the first room
+  const start = idx(sRoom.cx, sRoom.cy);
+  const dist = new Int32Array(W * H).fill(-1);
+  const q = [start]; dist[start] = 0; let far = start;
+  for (let qi = 0; qi < q.length; qi++) {
+    const c = q[qi];
+    if (dist[c] > dist[far]) far = c;
+    const x = c % W, y = (c / W) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const n = idx(nx, ny);
+      if (map[n] === 0 && dist[n] < 0) { dist[n] = dist[c] + 1; q.push(n); }
+    }
+  }
+  if (arena) far = idx(arena.cx, arena.cy);
+  map[far] = STAIRS;
+  stairsPos = { x: (far % W) + 0.5, y: ((far / W) | 0) + 0.5 };
+
+  // ---- floor variety: secret rooms, scenery, a locked door with its key ----
+  const reserved = new Set();                                // cells that loot and enemies must not be dropped on
+  const isOpen = (x, y) => { const t = map[idx(x, y)]; return t === 0 || t === STAIRS; };
+  const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  props = []; secrets = { total: 0, found: 0 }; P.keys = 0; opened = [];
+  const secretLoot = [];
+  for (let n = 0, want = (Math.random() * 3) | 0, tries = 0; n < want && tries < 400; tries++) {   // 0-2 closets hidden behind a wall you can push open
+    const x = 2 + ((Math.random() * (W - 4)) | 0), y = 2 + ((Math.random() * (H - 4)) | 0);
+    if (map[idx(x, y)] < 1 || map[idx(x, y)] > 3) continue;
+    const open = D4.filter(([dx, dy]) => isOpen(x + dx, y + dy));
+    if (open.length !== 1) continue;
+    const dx = -open[0][0], dy = -open[0][1];                // dig away from the open side
+    const cells = [[x + dx, y + dy], [x + 2 * dx, y + 2 * dy], [x + 2 * dx + dy, y + 2 * dy + dx], [x + 2 * dx - dy, y + 2 * dy - dx]];
+    const mine = new Set(cells.map(([cx, cy]) => idx(cx, cy))); mine.add(idx(x, y));
+    const ok = cells.every(([cx, cy]) => cx > 1 && cy > 1 && cx < W - 2 && cy < H - 2 && map[idx(cx, cy)] >= 1 && map[idx(cx, cy)] <= 3 &&
+      [-1, 0, 1].every(ay => [-1, 0, 1].every(ax => mine.has(idx(cx + ax, cy + ay)) || !isOpen(cx + ax, cy + ay) && map[idx(cx + ax, cy + ay)] !== SECRET)));
+    if (!ok || Math.hypot(x - rooms[0].cx, y - rooms[0].cy) < 4) continue;
+    for (const [cx, cy] of cells) { map[idx(cx, cy)] = 0; reserved.add(idx(cx, cy)); }
+    map[idx(x, y)] = SECRET; n++; secrets.total++;
+    const pool = ['armour', 'potion', 'potion', 'drop', 'drop', lv >= 6 ? (Math.random() < 0.5 ? 'fury' : 'ward') : 'armour'];
+    for (let k = 1; k < 3; k++) secretLoot.push({ x: cells[k][0] + 0.5, y: cells[k][1] + 0.5, kind: pool[(Math.random() * pool.length) | 0], taken: false });
+  }
+  const zp = ZONE_PROPS[zoneOf(lv)], roofed = !(THEMES.find(t => lv <= t.upTo) || {}).sky;
+  for (const r of rooms) {                                   // torches, pillars and the like, one cell in from the corners
+    if (r.x1 - r.x0 < 4 || r.y1 - r.y0 < 4) continue;
+    for (const [px, py] of [[r.x0 + 1, r.y0 + 1], [r.x1 - 1, r.y0 + 1], [r.x0 + 1, r.y1 - 1], [r.x1 - 1, r.y1 - 1]]) {
+      if (map[idx(px, py)] !== 0 || Math.random() < 0.45) continue;
+      props.push({ x: px + 0.5, y: py + 0.5, kind: zp[0][(Math.random() * zp[0].length) | 0], solid: true }); reserved.add(idx(px, py));
+    }
+    if (roofed && zp[1].length && Math.random() < 0.5) {
+      const hx = r.cx + (Math.random() < 0.5 ? -1 : 1), hy = r.cy + (Math.random() < 0.5 ? -1 : 1);
+      props.push({ x: hx + 0.5, y: hy + 0.5, kind: zp[1][(Math.random() * zp[1].length) | 0], solid: false });
+    }
+  }
+  // Scenery must never close a path: add the solid props one at a time and drop any that cuts something off
+  // (a corridor can clip a room right beside a corner, and a pillar there would plug it).
+  {
+    const countOpen = (shut) => { const seen = new Uint8Array(W * H), q = [start]; seen[start] = 1; let n = 1;
+      for (let i = 0; i < q.length; i++) { const c = q[i], x = c % W, y = (c / W) | 0;
+        for (const [dx, dy] of D4) { const k = idx(x + dx, y + dy); if (!seen[k] && !shut.has(k) && isOpen(x + dx, y + dy)) { seen[k] = 1; n++; q.push(k); } } }
+      return n; };
+    const shut = new Set(), base = countOpen(shut);
+    props = props.filter(pr => {
+      if (!pr.solid) return true;
+      const c = idx(Math.floor(pr.x), Math.floor(pr.y)); shut.add(c);
+      if (countOpen(shut) === base - shut.size) return true;
+      shut.delete(c); reserved.delete(c); return false;
+    });
+  }
+  traps = []; trapAt = new Uint8Array(W * H);                // spike traps in corridors, from floor 7
+  for (let n = 0, want = lv >= 7 ? (Math.random() * 4) | 0 : 0, tries = 0; n < want && tries < 300; tries++) {
+    const x = 2 + ((Math.random() * (W - 4)) | 0), y = 2 + ((Math.random() * (H - 4)) | 0), c = idx(x, y);
+    if (map[c] !== 0 || reserved.has(c) || dist[c] < 6) continue;
+    const ew = !isOpen(x - 1, y) && !isOpen(x + 1, y) && isOpen(x, y - 1) && isOpen(x, y + 1);
+    const ns = !isOpen(x, y - 1) && !isOpen(x, y + 1) && isOpen(x - 1, y) && isOpen(x + 1, y);
+    if ((!ew && !ns) || traps.some(t => Math.abs(t.x - x) + Math.abs(t.y - y) < 4)) continue;
+    traps.push({ x, y, ph: Math.random() * TRAP_CYCLE, was: false }); trapAt[c] = traps.length; reserved.add(c); n++;
+  }
+  darts = [];                                                // dart walls from floor 12: a wall cell looking down a straight run of 4+ cells
+  for (let n = 0, want = lv >= 12 ? (Math.random() * 3) | 0 : 0, tries = 0; n < want && tries < 400; tries++) {
+    const x = 2 + ((Math.random() * (W - 4)) | 0), y = 2 + ((Math.random() * (H - 4)) | 0);
+    if (map[idx(x, y)] < 1 || map[idx(x, y)] > 3) continue;
+    const open = D4.filter(([dx, dy]) => isOpen(x + dx, y + dy));
+    if (open.length !== 1) continue;
+    const [dx, dy] = open[0]; let run = 0;
+    while (run < 12 && isOpen(x + dx * (run + 1), y + dy * (run + 1))) run++;
+    if (run < 4 || dist[idx(x + dx, y + dy)] < 6 || darts.some(d => Math.abs(d.x - x) + Math.abs(d.y - y) < 6)) continue;
+    map[idx(x, y)] = DARTS; darts.push({ x, y, dx, dy, t: 1 + Math.random() * 2 }); n++;
+  }
+  // locked door: a corridor cell that cuts the stairs off from the start (as near the stairs as possible) or, failing
+  // that, one that seals off a side area as a vault with extra loot; either way the key stays on your side
+  let keyCells = null;
+  if (lv >= 3 && !BOSS_NAMES[lv] && Math.random() < 0.9) {      // only about one floor in four has a spot that works
+    const reach = (block) => {
+      const seen = new Uint8Array(W * H), qq = [start]; seen[start] = 1;
+      for (let qi = 0; qi < qq.length; qi++) {
+        const c = qq[qi], x = c % W, y = (c / W) | 0;
+        for (const [dx, dy] of D4) { const n = idx(x + dx, y + dy); if (!seen[n] && n !== block && isOpen(x + dx, y + dy)) { seen[n] = 1; qq.push(n); } }
+      }
+      return seen;
+    };
+    let best = -1, bestSeen = null;
+    for (let c = 0; c < map.length; c++) {
+      if (map[c] !== 0 || c === start || dist[c] < 8 || dist[c] <= (best < 0 ? 0 : dist[best])) continue;
+      const x = c % W, y = (c / W) | 0;
+      const ew = !isOpen(x - 1, y) && !isOpen(x + 1, y) && isOpen(x, y - 1) && isOpen(x, y + 1);
+      const ns = !isOpen(x, y - 1) && !isOpen(x, y + 1) && isOpen(x - 1, y) && isOpen(x + 1, y);
+      if (!ew && !ns) continue;                              // only where a door fits: walls on both sides
+      const seen = reach(c);
+      if (!seen[far]) { best = c; bestSeen = seen; }
+    }
+    if (best < 0) {                                          // no way to gate the stairs: look for a vault instead
+      const all = reach(-1); let total = 0, cut = 0; for (let i = 0; i < all.length; i++) total += all[i];
+      for (let c = 0; c < map.length; c++) {
+        if (map[c] !== 0 || c === start || dist[c] < 6) continue;
+        const x = c % W, y = (c / W) | 0;
+        const ew = !isOpen(x - 1, y) && !isOpen(x + 1, y) && isOpen(x, y - 1) && isOpen(x, y + 1);
+        const ns = !isOpen(x, y - 1) && !isOpen(x, y + 1) && isOpen(x - 1, y) && isOpen(x + 1, y);
+        if (!ew && !ns) continue;
+        const seen = reach(c); let n = 0; for (let i = 0; i < seen.length; i++) n += seen[i];
+        const lost = total - n - 1;
+        if (lost >= 12 && lost <= total * 0.4 && lost > cut) { cut = lost; best = c; bestSeen = seen; }
+      }
+      if (best >= 0) {                                       // stock the vault
+        const inside = []; for (let i = 0; i < map.length; i++) if (map[i] === 0 && all[i] && !bestSeen[i] && i !== best && !reserved.has(i)) inside.push(i);
+        for (const kind of ['armour', lv >= 6 ? 'fury' : 'potion', 'potion']) {
+          const c = inside.splice((Math.random() * inside.length) | 0, 1)[0];
+          if (c !== undefined) { secretLoot.push({ x: (c % W) + 0.5, y: ((c / W) | 0) + 0.5, kind, taken: false }); reserved.add(c); }
+        }
+      }
+    }
+    if (best >= 0) { map[best] = LOCKED; keyCells = bestSeen; }
+  }
+
+  // free floor cells away from the spawn
+  const free = [];
+  for (let i = 0; i < map.length; i++) {
+    if (map[i] !== 0 || reserved.has(i)) continue;
+    const x = i % W, y = (i / W) | 0;
+    if (Math.hypot(x - sRoom.cx, y - sRoom.cy) > 6) free.push(i);
+  }
+  const take = () => {
+    const k = (Math.random() * free.length) | 0;
+    const i = free[k]; free[k] = free[free.length - 1]; free.pop();
+    return i;
+  };
+  const cellXY = c => [(c % W) + 0.5, ((c / W) | 0) + 0.5];
+
+  items = secretLoot; shots = []; pshots = [];
+  if (keyCells) {                                            // the key: somewhere you can reach without the door, not too close to the start
+    const cand = free.filter(i => keyCells[i]), far2 = cand.filter(i => dist[i] > 6);
+    const pick = (far2.length ? far2 : cand)[(Math.random() * (far2.length ? far2 : cand).length) | 0];
+    if (pick === undefined) map[map.indexOf(LOCKED)] = 0;    // nowhere to put it: no lock after all
+    else { free.splice(free.indexOf(pick), 1); const [kx, ky] = cellXY(pick); items.push({ x: kx, y: ky, kind: 'key', taken: false }); }
+  }
+  const addItem = (kind) => { if (!free.length) return; const [x, y] = cellXY(take()); items.push({ x, y, kind, taken: false }); };
+  for (let i = 0; i < potionCount(lv); i++) addItem('potion');
+  addItem('crate');                                   // one weapon crate per floor
+  addItem('ammo'); if (Math.random() < 0.5) addItem('ammo');
+  if (lv >= 4 && (BOSS_NAMES[lv] || Math.random() < 0.35 + 0.04 * zoneOf(lv))) addItem('armour');
+  if (lv >= 6 && (BOSS_NAMES[lv] || Math.random() < 0.22)) addItem(Math.random() < 0.6 ? 'fury' : 'ward');   // always one for a boss
+
+  monsters = [];
+  // the zone boss guards the stairs on every tenth floor
+  if (BOSS_NAMES[lv] && free.length) {
+    const sx = far % W, sy = (far / W) | 0;
+    let bi = -1, bd = Infinity;
+    for (const i of free) {
+      const d = Math.hypot((i % W) - sx, ((i / W) | 0) - sy);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    free.splice(free.indexOf(bi), 1);
+    const [bx, by] = cellXY(bi);
+    monsters.push(spawnMonster(bx, by, 'boss', lv));
+  }
+
+  const nm = Math.round(Math.min(20, 5 + ((lv - 1) % 10) * 0.6 + zoneOf(lv) * 1.3) * (BOSS_NAMES[lv] ? 0.6 : 1));   // fewer on a boss floor: the boss is the fight   // ramps inside each zone, and zone by zone
+  // Most enemies come in packs of 2-4 sharing a room (a mix from the zone's roster); about a quarter roam alone.
+  const inRoom = r => free.filter(c => { const x = c % W, y = (c / W) | 0; return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; });
+  const packRooms = rooms.slice(1).filter(r => !r.arena);
+  for (let left = nm; left > 0 && free.length;) {
+    const cells = packRooms.length && Math.random() < 0.75 ? inRoom(packRooms[(Math.random() * packRooms.length) | 0]) : [];
+    const size = cells.length >= 2 ? Math.min(left, cells.length, 2 + ((Math.random() * 3) | 0)) : 1;
+    for (let k = 0; k < size; k++, left--) {
+      let c;
+      if (size > 1) { c = cells.splice((Math.random() * cells.length) | 0, 1)[0]; free.splice(free.indexOf(c), 1); } else c = take();
+      const [x, y] = cellXY(c);
+      monsters.push(spawnMonster(x, y, pickKind(lv), lv));
+    }
+  }
+
+  for (let i = 0, n = lv >= 5 ? (Math.random() * 4) | 0 : 0; i < n && free.length; i++) {   // explosive pods
+    const [x, y] = cellXY(take()); monsters.push(spawnMonster(x, y, 'pod', lv));
+  }
+  // size this floor's ammo to what stands on it: unscaled, the floor would hold `base` damage worth of ammo
+  const pool = Object.keys(WEAPON_FLOOR).filter(w => lv >= WEAPON_FLOOR[w]);
+  const boxDmg = pool.reduce((a, w) => a + BOX_AMMO[w] * AMMO_DMG[w], 0);
+  const crateDmg = pool.reduce((a, w) => a + CRATE_AMMO[w] * AMMO_DMG[w], 0) / pool.length;
+  const base = items.reduce((a, it) => a + (it.kind === 'crate' ? crateDmg : it.kind === 'ammo' ? boxDmg : 0), 0)
+    + monsters.length * 0.3 * boxDmg / 2 / pool.length;
+  floorAmmo = Math.max(1, monsters.reduce((a, m) => a + (m.prop ? 0 : m.hp), 0) * AMMO_RATIO(lv) / base) / wpnMul(lv);   // stronger weapons need fewer rounds
+
+  explored = new Uint8Array(W * H);
+  P.x = sRoom.cx + 0.5; P.y = sRoom.cy + 0.5; P.a = 0;
+}
+
+// ---------- collision & line of sight ----------
+function solid(x, y) {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  if (cx < 0 || cy < 0 || cx >= W || cy >= H) return true;
+  const t = map[cy * W + cx];
+  return t > 0 && t !== STAIRS;
+}
+function blocked(x, y) {
+  const r = 0.2;
+  for (const pr of props) if (pr.solid && Math.abs(pr.x - x) < 0.32 && Math.abs(pr.y - y) < 0.32) return true;
+  return solid(x - r, y - r) || solid(x + r, y - r) || solid(x - r, y + r) || solid(x + r, y + r);
+}
+function moveEnt(e, dx, dy) {
+  if (!blocked(e.x + dx, e.y)) e.x += dx;
+  if (!blocked(e.x, e.y + dy)) e.y += dy;
+}
+function los(x0, y0, x1, y1) {
+  const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 8);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (solid(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) return false;
+  }
+  return true;
+}
+
+// ---------- sound (Web Audio; effects from sounds.js, cast in tools/sound_cast.py) ----------
+// sfx(key) plays at full volume; sfxAt(key, x, y) fades with distance and pans left/right of where you face.
+// Enemy sounds go through msnd(m, 'see' | 'atk' | 'shot' | 'pain' | 'die' | 'act'). Everything is a no-op until
+// the first key press or click, when browsers allow audio to start.
+const SND = {}, sndLast = {};
+let actx = null, sndMaster = null, sndVolume = opts.vol, actT = 4;
+function audioInit() {
+  if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC || !window.SOUNDS) return;
+  actx = new AC(); sndMaster = actx.createGain(); sndMaster.gain.value = sndVolume; sndMaster.connect(actx.destination);
+  for (const file in SOUNDS) {
+    const bin = atob(SOUNDS[file].split(',')[1]), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    actx.decodeAudioData(bytes.buffer, buf => { SND[file] = buf; }, () => {});
+  }
+}
+function sfx(key, vol = 1, pan = 0) {
+  const buf = actx && window.SOUND_KEYS && SND[SOUND_KEYS[key]];
+  if (!buf || vol <= 0.02) return false;
+  const now = actx.currentTime;
+  if (now - (sndLast[key] || -1) < 0.05) return true;         // the same sound twice in one instant only gets louder
+  sndLast[key] = now;
+  const src = actx.createBufferSource(), g = actx.createGain();
+  src.buffer = buf; src.playbackRate.value = 0.96 + Math.random() * 0.08; g.gain.value = vol;
+  src.connect(g);
+  if (pan && actx.createStereoPanner) { const p = actx.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(sndMaster); }
+  else g.connect(sndMaster);
+  src.start();
+  return true;
+}
+function sfxAt(key, x, y, vol = 1) {
+  const dx = x - P.x, dy = y - P.y, d = Math.hypot(dx, dy);
+  const a = Math.atan2(dy, dx) - P.a;
+  return sfx(key, vol * Math.max(0, 1 - d / 16) ** 1.5, d > 0.5 ? Math.sin(a) * 0.7 : 0);
+}
+const msnd = (m, ev, vol = 1) => !!window.SOUND_KEYS && sfxAt((m.art || monArtKey(m)) + '_' + ev, m.x, m.y, vol * (m.boss ? 1.3 : 1));
+addEventListener('keydown', audioInit); addEventListener('pointerdown', audioInit);
+// ---- ambience: per zone, a quiet loop (or none) plus a stray noise every 10-25 s ----
+const ZONE_AMB = [
+  [null, ['amb1', 'amb2', 'amb3']], ['amb_water', ['amb6', 'amb7']], [null, ['amb1', 'amb8', 'amb3']], [null, ['amb2', 'amb6']],
+  ['amb_fire', ['amb7']], ['amb_wind', []], ['amb_wind', ['amb8']], [null, ['amb6', 'amb7', 'amb8']],
+  [null, ['amb1', 'amb7', 'amb8']], ['amb_wind', ['amb2', 'amb3']]
+];
+let ambSrc = null, ambKey = '', ambT = 8;
+function setAmbience(lv) {
+  const key = lv > 0 ? ZONE_AMB[zoneOf(lv)][0] : null;
+  if (key === ambKey && (ambSrc || !key)) return;
+  if (ambSrc) { try { ambSrc.stop(); } catch (e) {} ambSrc = null; }
+  ambKey = key;
+  const buf = key && actx && window.SOUND_KEYS && SND[SOUND_KEYS[key]];
+  if (!buf) return;                                           // not decoded yet: update() asks again
+  const g = actx.createGain(); g.gain.value = 0.22; g.connect(sndMaster);
+  ambSrc = actx.createBufferSource(); ambSrc.buffer = buf; ambSrc.loop = true; ambSrc.connect(g); ambSrc.start();
+}
+function ambienceTick(dt) {
+  if (level <= 0) return;
+  if (!ambSrc && ZONE_AMB[zoneOf(level)][0]) setAmbience(level);
+  if ((ambT -= dt) > 0) return;
+  ambT = rnd(10, 25);
+  const list = ZONE_AMB[zoneOf(level)][1];
+  if (list.length) sfx(list[(Math.random() * list.length) | 0], 0.35, rnd(-0.8, 0.8));
+}
+// ---- music: looping tracks in music/<key>.mp3 (tools/pack_music.py), streamed by an <audio> element so only the
+// track in use is downloaded. setMusic(key) switches; nothing plays until the first key press or click. ----
+const musicEl = new Audio(); musicEl.loop = true; musicEl.preload = 'none';
+let musicKey = '', musicOK = false;
+const MUSIC_FOR = lv => lv <= 0 ? 'title' : lv % 10 === 0 ? 'boss' : 'zone' + (1 + (zoneOf(lv) >> 1));   // zones share a track in pairs
+function setMusic(key) {
+  if (key !== musicKey) { musicKey = key; musicEl.src = 'music/' + key + '.mp3'; }
+  musicEl.volume = opts.music;
+  if (musicOK && opts.music > 0) { const p = musicEl.play(); if (p && p.catch) p.catch(() => {}); } else musicEl.pause();
+}
+const musicUnlock = () => { if (!musicOK) { musicOK = true; setMusic(musicKey || 'title'); } };
+addEventListener('keydown', musicUnlock); addEventListener('pointerdown', musicUnlock);
+
+// ---------- menus, records, pause, death and victory, saves and checkpoints, changing floor ----------
+function showMsg(t) {
+  msgEl.textContent = t; msgEl.style.opacity = 1; msgT = 2.4;
+  msgEl.style.top = ($('hud').getBoundingClientRect().bottom + 6) + 'px';   // always below the HUD, even when it wraps on narrow screens
+}
+function bossAlive() { return monsters.some(m => m.boss && !m.dead); }
+
+// ---- arcade menu state: best run kept in localStorage (per browser) ----
+function loadBest() { try { return JSON.parse(localStorage.getItem('cc_best')) || { floor: 0, kills: 0 }; } catch (e) { return { floor: 0, kills: 0 }; } }
+function saveBest() {
+  const b = loadBest(), isNew = level > b.floor || (level === b.floor && kills > b.kills);
+  if (isNew) try { localStorage.setItem('cc_best', JSON.stringify({ floor: level, kills })); } catch (e) {}
+  return isNew;
+}
+function showMenu(title, text, go, dead) {
+  running = false; $('bossbar').style.display = 'none';
+  if (document.pointerLockElement) { lockDropT = performance.now(); document.exitPointerLock(); }   // give the mouse back so the menu can be clicked
+  if (title !== 'PAUSED' && !/CLEARED$/.test(title)) setAmbience(0);
+  if (title === 'CRYPT CRAWLER') setMusic('title'); else if (title === 'SPIRE CONQUERED') setMusic('win');
+  $('title').textContent = title; $('title').classList.toggle('dead', !!dead);
+  $('tag').style.display = title === 'CRYPT CRAWLER' ? '' : 'none';
+  introEl.textContent = text; $('go').textContent = go;
+  const b = loadBest();
+  $('hiscore').innerHTML = b.floor ? `TOP CLIMB &nbsp;<b>FLOOR ${b.floor}</b> &nbsp;·&nbsp; <b>${b.kills}</b> SLAIN` : 'TOP CLIMB &nbsp;<b>---</b>';
+  const cp = (!dead && loadResume()) || loadCheckpoint(), canCont = cp && cp.floor > 1 && title !== 'SPIRE CONQUERED';
+  if (canCont && !dead && title === 'CRYPT CRAWLER') $('go').textContent = `CONTINUE · FLOOR ${cp.floor}`;
+  $('newclimb').style.display = canCont ? '' : 'none'; $('quit').style.display = 'none'; paused = false; summary = false;
+  overlay.style.display = 'flex'; menuShownAt = performance.now(); menuI = 0; menuPaint();
+}
+let menuShownAt = performance.now(), paused = false, summary = false, lockDropT = -1e9;   // lockDropT: when the game itself last let go of the mouse
+// ---- zone results: shown when you take the stairs after a boss; PRESS START carries on to the next zone ----
+let zoneStat = { t: 0, kills0: 0, hurt: 0, secrets: 0, secretsAll: 0 }, runT = 0;
+// lifetime records, localStorage 'cc_stats': counters plus the best time for each zone and for a whole climb
+// Achievements: kept with the lifetime records (cc_stats.ach = { id: when }); a line on screen when one unlocks.
+const ACH = {
+  boss1: ['Gravebreaker', 'Defeat the Warden'], boss5: ['Halfway up', 'Defeat the Forgeheart'], win: ['Spire conquered', 'Reach the other world'],
+  hard: ['Glutton for punishment', 'Finish the climb on hard'], flawless: ['Untouchable', 'Clear a whole zone without dying'],
+  sprint: ['Sprinter', 'Clear a zone in under eight minutes'], secrets: ['Nosy', 'Find every secret on a floor that hides two'],
+  fists: ['Bare knuckles', 'Land the killing blow on a boss with your fists'], pod: ['Chain reaction', 'Kill three enemies with one pod'],
+  armed: ['Fully armed', 'Carry all nine guns at once'], slayer: ['Slayer', 'Slay a thousand enemies in total']
+};
+let zoneDeaths = 0;                                            // deaths since this zone began (not reset by a retry)
+function unlock(id) {
+  const s = loadStats(); s.ach = s.ach || {};
+  if (s.ach[id] || !ACH[id]) return;
+  s.ach[id] = Date.now();
+  try { localStorage.setItem('cc_stats', JSON.stringify(s)); } catch (e) {}
+  sfx('power'); showMsg(`Achievement · ${ACH[id][0]}`);
+}
+function loadStats() { try { return Object.assign({ deaths: 0, kills: 0, secrets: 0, wins: 0, zoneBest: [], runBest: 0 }, JSON.parse(localStorage.getItem('cc_stats')) || {}); } catch (e) { return { deaths: 0, kills: 0, secrets: 0, wins: 0, zoneBest: [], runBest: 0 }; } }
+function bumpStats(add, zone, zoneTime, runTime) {
+  const s = loadStats();
+  for (const k in add) s[k] = (s[k] || 0) + add[k];
+  if (zone !== undefined && (!s.zoneBest[zone] || zoneTime < s.zoneBest[zone])) s.zoneBest[zone] = Math.round(zoneTime);
+  if (runTime && (!s.runBest || runTime < s.runBest)) s.runBest = Math.round(runTime);
+  try { localStorage.setItem('cc_stats', JSON.stringify(s)); } catch (e) {}
+  if (s.kills >= 1000) unlock('slayer');
+}
+function showRecords(on) {
+  const s = loadStats(), b = loadBest(), row = (a, v) => `<tr><td>${a}</td><td>${v}</td></tr>`;
+  $('rectable').innerHTML = row('Highest floor', b.floor || '-') + row('Climbs completed', s.wins) + row('Fastest climb', s.runBest ? clock(s.runBest) : '-')
+    + row('Enemies slain', s.kills) + row('Secrets found', s.secrets) + row('Deaths', s.deaths)
+    + ZONES.map((z, i) => row(`Best time · ${z.name}`, s.zoneBest[i] ? clock(s.zoneBest[i]) : '-')).join('')
+    + `<tr><td colspan="2" style="padding-top:14px;color:#ff8a3a;letter-spacing:3px">ACHIEVEMENTS ${Object.keys(s.ach || {}).length} OF ${Object.keys(ACH).length}</td></tr>`
+    + Object.keys(ACH).map(id => row(`${ACH[id][0]} · <span style="color:#8a8078">${ACH[id][1]}</span>`, (s.ach || {})[id] ? '✓' : '')).join('');
+  $('recpanel').classList.toggle('on', on); if (on) { menuBackI = menuI; menuI = 0; } else menuI = menuBackI;
+  menuPaint();
+}
+const clock = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function showSummary() {
+  const z = ZONES[zoneOf(level)];
+  bumpStats({ kills: kills - zoneStat.kills0, secrets: zoneStat.secrets }, zoneOf(level), zoneStat.t);
+  if (zoneDeaths === 0) unlock('flawless');
+  if (zoneStat.t < 480) unlock('sprint');
+  showMenu(`${z.name.replace(/^THE /, '')} CLEARED`,
+    `${z.boss} is dead · time ${clock(zoneStat.t)} · ${kills - zoneStat.kills0} slain · secrets ${zoneStat.secrets} of ${zoneStat.secretsAll} · damage taken ${Math.round(zoneStat.hurt)}`,
+    `ONWARD · ${ZONES[zoneOf(level + 1)].name}`);
+  $('newclimb').style.display = 'none'; summary = true;
+}
+// ---- pause: Esc or P in play (or losing the mouse lock, or switching away from the tab) ----
+function pauseGame() {
+  if (!running) return;
+  running = false; paused = true; $('bossbar').style.display = 'none';
+  $('title').textContent = 'PAUSED'; $('title').classList.remove('dead'); $('tag').style.display = 'none';
+  introEl.textContent = level > 0 ? `Floor ${level} · ${ZONES[zoneOf(level)].name}` : 'The entrance';
+  $('go').textContent = 'RESUME'; $('newclimb').style.display = 'none'; $('quit').style.display = '';
+  overlay.style.display = 'flex'; menuShownAt = performance.now(); menuI = 0; menuPaint();
+  for (const k in keys) keys[k] = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+function resumeGame() {
+  paused = false; running = true; overlay.style.display = 'none'; $('quit').style.display = 'none';
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+}
+function die() {
+  sfx('death'); clearResume(); bumpStats({ deaths: 1 }); zoneDeaths++;
+  const rec = saveBest(), cp = loadCheckpoint();
+  const zn = ZONES[zoneOf(Math.max(1, level))].name, inZone = level > 0 ? ((level - 1) % 10) + 1 : 0;
+  showMenu('GAME OVER', `${rec ? 'NEW RECORD! ' : ''}Killed by ${P.killer || 'the Spire'} on floor ${level} · ${zn}, floor ${inZone} of 10 · ${kills} slain · ${clock(runT)} into the climb`,
+    cp && cp.floor > 1 ? `CONTINUE · FLOOR ${cp.floor}` : 'TRY AGAIN', true);
+}
+function victory() {
+  unlock('win'); if (opts.diff === 'hard') unlock('hard'); if (zoneDeaths === 0) unlock('flawless');
+  saveBest(); clearCheckpoint(); bumpStats({ wins: 1, kills: kills - zoneStat.kills0, secrets: zoneStat.secrets + secrets.found }, zoneOf(level), zoneStat.t, runT);
+  if (typeof THREE !== 'undefined') { try { startEnding(); return; } catch (e) { endActive = false; } }   // no Three.js / WebGL: straight to the menu
+  victoryMenu();
+}
+function victoryMenu() {
+  showMenu('SPIRE CONQUERED', `The Spire Titan is dead · all ${FINAL} floors · ${kills} slain · time ${clock(runT)}`, 'CLIMB AGAIN');
+}
+// ---- checkpoints: entering a zone saves floor + loadout (localStorage 'cc_save'); CONTINUE restarts there ----
+// A second save, 'cc_resume', is written on every floor so closing the game loses nothing; it restores the floor exactly
+// (health, armour, timers). Dying deletes it, which is what sends you back to the zone checkpoint.
+function saveResume() {
+  try { localStorage.setItem('cc_resume', JSON.stringify({ floor: level, kills, owned: P.owned, ammo: P.ammo, weapon: P.weapon, armor: P.armor, hp: P.hp, runT, zoneStat })); } catch (e) {}
+}
+function loadResume() { try { return JSON.parse(localStorage.getItem('cc_resume')); } catch (e) { return null; } }
+function clearResume() { try { localStorage.removeItem('cc_resume'); } catch (e) {} }
+function saveCheckpoint() {
+  try { localStorage.setItem('cc_save', JSON.stringify({ floor: level, kills, owned: P.owned, ammo: P.ammo, weapon: P.weapon, armor: P.armor })); } catch (e) {}
+}
+function loadCheckpoint() { try { return JSON.parse(localStorage.getItem('cc_save')); } catch (e) { return null; } }
+function clearCheckpoint() { try { localStorage.removeItem('cc_save'); } catch (e) {} clearResume(); }
+function nextLevel(afterSummary) {
+  zoneStat.secrets += secrets.found; zoneStat.secretsAll += secrets.total; secrets = { total: 0, found: 0 };
+  if (level > 0 && level % 10 === 0 && level < FINAL && !afterSummary) { showSummary(); return; }
+  if (level % 10 === 0) { zoneStat = { t: 0, kills0: kills, hurt: 0, secrets: 0, secretsAll: 0 }; zoneDeaths = 0; }
+  level++; setMusic(MUSIC_FOR(level)); setAmbience(level);
+  sfx(level === 1 ? 'door' : 'stairs');
+  P.maxHp = zoneMaxHp(level);
+  P.hp = Math.min(P.maxHp, P.hp + Math.round(P.maxHp / 4));        // a breather on every staircase
+  generate(level);
+  const z = ZONES[zoneOf(level)];
+  if (level === zoneStart(level)) {
+    P.hp = P.maxHp; saveCheckpoint(); if (level > 1) sfx('power');
+    showMsg(level === 1 ? `You step into the Spire · ${z.name}` : `${z.name} · checkpoint · max health ${P.maxHp} · weapons +${zoneOf(level) * 10}%`);
+  } else if (level % 10 === 0) {
+    saveCheckpoint();                                          // a second checkpoint at the boss's door, so losing to it does not cost the zone
+    showMsg(`Floor ${level} · ${z.boss} awaits · checkpoint`);
+  } else showMsg(`Floor ${level}`);
+  saveResume();
+}
+function continueGame(cp, exact) {                           // exact: a resume save, restored as it was (no refill)
+  kills = cp.kills || 0; zoneStat = { t: 0, kills0: kills, hurt: 0, secrets: 0, secretsAll: 0 };
+  P = newPlayer(); Object.assign(P.owned, cp.owned); Object.assign(P.ammo, cp.ammo);
+  for (const w in P.owned) if (!WEAPONS[w]) delete P.owned[w];          // a save from before the weapon change
+  P.weapon = WEAPONS[cp.weapon] && P.owned[cp.weapon] ? cp.weapon : (WEAPON_ORDER.find(w => P.owned[w]) || 'fist'); P.armor = cp.armor || 0;
+  level = cp.floor; P.maxHp = P.hp = zoneMaxHp(level); generate(level); setMusic(MUSIC_FOR(level)); setAmbience(level);
+  // a retry never starts empty-handed: every gun unlocked by now is in your hands with at least a cache and a half of ammo,
+  // so running dry before a checkpoint cannot turn into dying there over and over
+  if (exact) { P.hp = Math.min(P.maxHp, cp.hp || P.maxHp); runT = cp.runT || 0; if (cp.zoneStat) zoneStat = cp.zoneStat; }
+  else for (const w in WEAPON_FLOOR) if (level >= WEAPON_FLOOR[w]) { P.owned[w] = true; P.ammo[w] = Math.max(P.ammo[w], Math.round(CRATE_AMMO[w] * floorAmmo * 1.5)); }
+  if (P.weapon === 'fist') P.weapon = WEAPON_ORDER.find(w => P.owned[w]) || 'fist';
+  running = true; overlay.style.display = 'none';
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  showMsg(`${ZONES[zoneOf(level)].name} · floor ${level}`);
+}
+
+// ---------- the player: taking damage, pickups, weapons and every kind of attack ----------
+function hurtPlayer(n, fx, fy, by) {                          // (fx, fy): where the hit came from, for the direction marker; by: what did it
+  if (by) P.killer = by;
+  if (!running) return;
+  if (P.ward > 0) return;
+  if (fx !== undefined) { P.hitA = Math.atan2(fy - P.y, fx - P.x); P.hitT = 0.7; } else P.hitT = 0;
+  zoneStat.hurt += n;
+  if (P.armor > 0) { const soak = Math.min(P.armor, Math.ceil(n * ARMOUR_SOAK)); P.armor -= soak; n -= soak; }
+  P.hp -= n; P.hurt = 0.3; sfx('hurt');
+  if (P.hp <= 0) { P.hp = 0; die(); }
+}
+function giveWeapon(w) {
+  const had = P.owned[w];
+  const n = Math.round(CRATE_AMMO[w] * floorAmmo);
+  P.owned[w] = true; P.ammo[w] += n;
+  if (!had) P.weapon = w;
+  if (Object.keys(WEAPON_FLOOR).every(g => P.owned[g])) unlock('armed');
+  showMsg(had ? `${WEAPONS[w].name}: +${n} ${AMMO_NAME[w]}` : `Found the ${WEAPONS[w].name}!`);
+}
+function pickupItem(kind) {
+  sfx(kind === 'crate' ? 'weapon' : kind === 'fury' || kind === 'ward' ? 'power' : 'item');
+  if (kind === 'potion') {
+    P.hp = Math.min(P.maxHp, P.hp + potionHeal(level));
+    showMsg(`Healing draught +${potionHeal(level)} HP`);
+  } else if (kind === 'key') {
+    P.keys = (P.keys || 0) + 1; showMsg('A key');
+  } else if (kind === 'armour') {
+    P.armor = Math.min(ARMOUR_MAX, P.armor + ARMOUR_PICKUP); showMsg(`Armour +${ARMOUR_PICKUP}`);
+  } else if (kind === 'fury') {
+    P.fury = FURY_TIME; showMsg(`Tome of fury · double damage for ${FURY_TIME} seconds`);
+  } else if (kind === 'ward') {
+    P.ward = WARD_TIME; showMsg(`Ward · nothing can hurt you for ${WARD_TIME} seconds`);
+  } else if (kind === 'ammo') {
+    for (const w in BOX_AMMO) if (level >= WEAPON_FLOOR[w]) P.ammo[w] += Math.round(BOX_AMMO[w] * floorAmmo);   // only guns unlocked so far
+    showMsg('Ammo box');
+  } else if (kind === 'drop') {                       // small ammo dropped by an enemy, for a random gun you can use on this floor
+    const pool = Object.keys(WEAPON_FLOOR).filter(w => level >= WEAPON_FLOOR[w]);
+    const w = pool[(Math.random() * pool.length) | 0];
+    const n = Math.max(1, Math.round(BOX_AMMO[w] * floorAmmo / 2));
+    P.ammo[w] += n; showMsg(`+${n} ${AMMO_NAME[w]}`);
+  } else if (kind === 'crate') {
+    // prefer a gun you do not have; otherwise any unlocked one (refill)
+    const pool = Object.keys(WEAPON_FLOOR).filter(w => Math.max(1, level) >= WEAPON_FLOOR[w]);
+    const missing = pool.filter(w => !P.owned[w]);
+    const from = missing.length ? missing : pool;
+    giveWeapon(from[(Math.random() * from.length) | 0]);
+  }
+}
+// called after a shot: an empty gun leaves the cycle and you switch to the next one you have (fists at worst)
+function dropIfEmpty(w) {
+  if (!WEAPONS[w].ammo || P.ammo[w] > 0) return;
+  P.owned[w] = false;
+  const next = WEAPON_ORDER.find(o => P.owned[o]) || 'fist';
+  P.weapon = next; P.owned.fist = true;
+  showMsg(`${WEAPONS[w].name} is empty`);
+}
+function cycleWeapon(dir = 1) {
+  sfx('switch', 0.6);
+  const owned = WEAPON_ORDER.filter(w => P.owned[w]);
+  const i = owned.indexOf(P.weapon);
+  P.weapon = owned[(i + dir + owned.length) % owned.length];
+  showMsg(WEAPONS[P.weapon].name);
+}
+
+// knock shoves the enemy away from (fx, fy) (default: the player); stun freezes it briefly. Bosses mostly shrug both off.
+function hurtMonster(m, dmg, knock = 0, stun = 0, fx = P.x, fy = P.y) {
+  m.hp -= Math.round(dmg * wpnMul(level) * (P.fury > 0 ? 2 : 1)); m.hurt = 0.15; m.woke = true;
+  if (m.hp > 0 && Math.random() < 0.6) msnd(m, 'pain', 0.8);
+  if (knock) {
+    const ex = m.x - fx, ey = m.y - fy, d = Math.hypot(ex, ey) || 1, k = knock * (m.boss ? 0.2 : m.heavy ? 0.4 : 1) * 6;
+    m.kbx = (m.kbx || 0) + ex / d * k; m.kby = (m.kby || 0) + ey / d * k;
+  }
+  if (stun) m.stun = Math.max(m.stun || 0, stun * (m.boss ? 0.3 : 1));
+  if (m.hp <= 0 && m.prop) {                                 // a pod bursts: hurts everything close, you included
+    m.dead = true; m.dieT = 0; m.art = monArtKey(m); sfxAt('bigboom', m.x, m.y);
+    pshots.push({ kind: 'boom', x: m.x, y: m.y, vx: 0, vy: 0, life: 0.25, static: true, dead: false, size: 2.2 });
+    const k0 = kills;
+    for (const o of monsters) if (!o.dead && Math.hypot(o.x - m.x, o.y - m.y) < 2.2) hurtMonster(o, 70, 1.2, 0.3, m.x, m.y);
+    if (kills - k0 >= 3) unlock('pod');
+    const pd = Math.hypot(P.x - m.x, P.y - m.y);
+    if (pd < 2.2) hurtPlayer(Math.round(30 * dmgMul(level) * (1 - pd / 2.6)), m.x, m.y, 'an exploding pod');
+    return;
+  }
+  if (m.hp <= 0) killMonster(m, true);
+}
+// An enemy dies. byPlayer: it counts as your kill (and feeds a killing spree); enemies can also kill each other.
+let streak = 0, lastKillT = -99;
+function killMonster(m, byPlayer) {
+  m.dead = true; m.dieT = 0; m.art = monArtKey(m); msnd(m, 'die');
+  // enemies sometimes drop a little ammo; bosses always leave a weapon cache, an ammo chest and armour
+  if (m.boss) { items.push({ x: m.x, y: m.y, kind: 'crate', taken: false }, { x: m.x + 0.3, y: m.y, kind: 'ammo', taken: false }, { x: m.x - 0.3, y: m.y, kind: 'armour', taken: false }); }
+  else if (Math.random() < 0.3) items.push({ x: m.x, y: m.y, kind: 'drop', taken: false });
+  if (byPlayer) {
+    kills++;
+    streak = runT - lastKillT < 3.5 ? streak + 1 : 1; lastKillT = runT;      // three or more kills in quick succession: a spree
+    if (!m.boss) {
+      if (streak >= 3) { P.hp = Math.min(P.maxHp, P.hp + 3); showMsg(`Killing spree ×${streak} · +3 health`); }
+      else showMsg('Slain!');
+    }
+  }
+  if (m.boss) {
+    if (level === 10) unlock('boss1'); if (level === 50) unlock('boss5'); if (byPlayer && P.weapon === 'fist') unlock('fists');
+    if (level >= FINAL) pendingWin = 1.5;
+    else showMsg(`${m.name} falls! The stairs unseal.`);
+  }
+}
+// One enemy hurts another (a stray shot, or a grudge being settled). The victim turns on whoever did it for a while.
+function monsterHurt(o, dmg, by) {
+  if (o.dead) return;
+  if (o.prop) { hurtMonster(o, 99); return; }                // a pod caught in the crossfire bursts
+  o.hp -= dmg; o.hurt = 0.15;
+  if (o.hp <= 0) { killMonster(o, false); return; }
+  if (Math.random() < 0.5) msnd(o, 'pain', 0.6);
+  if (by && by !== o && !by.dead && !o.boss) { o.grudge = by; o.grudgeT = 6; o.woke = true; }
+}
+function hitscan(ang, w) {
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  let best = null, bestAlong = Infinity;
+  for (const m of monsters) {
+    if (m.dead) continue;
+    const ex = m.x - P.x, ey = m.y - P.y;
+    const along = ex * dx + ey * dy;
+    if (along <= 0.2) continue;
+    const perp = Math.abs(ex * dy - ey * dx);
+    const reach = (m.boss ? 0.5 : 0.18) + along * 0.08;
+    if (perp > reach) continue;
+    if (along < bestAlong && los(P.x, P.y, m.x, m.y)) { best = m; bestAlong = along; }
+  }
+  if (best) {
+    // shotgun pellets lose power with distance (full inside w.near, 25% at w.far)
+    const fall = w.near ? Math.max(0.25, Math.min(1, 1 - (bestAlong - w.near) / (w.far - w.near) * 0.75)) : 1;
+    hurtMonster(best, Math.round(roll(w.dmg) * fall), (w.knock || 0) * fall, w.stun || 0);
+  }
+}
+function fire() {
+  if (!running || P.fire > 0) return;
+  const w = WEAPONS[P.weapon];
+  if (w.ammo && P.ammo[P.weapon] <= 0) { P.fire = 0.3; sfx('empty'); dropIfEmpty(P.weapon); return; }
+  const used = P.weapon;
+  if (w.ammo) P.ammo[used]--;
+  P.fire = w.cool; P.anim = 1; P.animRate = 1 / (w.animDur || 0.4);
+  if (w.type !== 'melee') sfx(P.weapon);
+  if (w.type === 'hitscan') {
+    P.flash = 0.09;
+    for (let i = 0; i < w.pellets; i++) hitscan(P.a + (w.spread ? rnd(-w.spread, w.spread) : 0), w);
+  } else if (w.type === 'melee') { P.swingT = 0; if (meleeHit(w) > 0) { P.hitFlash = 0.15; sfx('punch'); } else sfx('swing', 0.6); }
+  else if (w.type === 'chain') chainLightning(w);
+  else if (w.type === 'pierce') pierceBeam(w);
+  else if (w.type === 'nova') novaBlast(w);
+  else spawnPlayerShot(w);
+  dropIfEmpty(used);
+}
+
+// Hellstaff: a beam along the aim line that hurts every enemy on it, up to the first wall.
+function pierceBeam(w) {
+  const dx = Math.cos(P.a), dy = Math.sin(P.a);
+  let reach = 0.3; while (reach < w.range && !solid(P.x + dx * reach, P.y + dy * reach)) reach += 0.1;
+  for (const m of monsters) {
+    if (m.dead) continue;
+    const ex = m.x - P.x, ey = m.y - P.y, along = ex * dx + ey * dy;
+    if (along > 0.2 && along < reach && Math.abs(ex * dy - ey * dx) < (m.boss ? 0.5 : 0.25)) hurtMonster(m, roll(w.dmg), 0, w.stun);
+  }
+  bolts.push({ hand: true, ax: 0, ay: 0, bx: P.x + dx * reach, by: P.y + dy * reach, life: 0.09, col: '#ff5a3c' });
+}
+// The Big One: everything in sight within range takes the blast.
+function novaBlast(w) {
+  P.nova = 0.35; sfx('nova');
+  for (const m of monsters) {
+    if (!m.dead && Math.hypot(m.x - P.x, m.y - P.y) < w.range && los(P.x, P.y, m.x, m.y)) hurtMonster(m, roll(w.dmg), w.knock, 0.5);
+  }
+}
+function inCone(m, range, arc) {
+  const ex = m.x - P.x, ey = m.y - P.y;
+  if (Math.hypot(ex, ey) > range) return false;
+  let diff = Math.atan2(ey, ex) - P.a;
+  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+  return Math.abs(diff) <= arc && los(P.x, P.y, m.x, m.y);
+}
+function meleeHit(w) {
+  let n = 0;
+  for (const m of monsters) {
+    if (!m.dead && inCone(m, w.range, w.arc)) { hurtMonster(m, roll(w.dmg), w.knock, w.stun); n++; }
+  }
+  return n;
+}
+function spawnPlayerShot(w) {
+  // shots leave from the weapon (a little right of the eye) and converge on the crosshair 5 cells ahead
+  const dx = Math.cos(P.a), dy = Math.sin(P.a);
+  const sx = P.x + dx * 0.4, sy = P.y + dy * 0.4;
+  const aimX = P.x + dx * 5 - sx, aimY = P.y + dy * 5 - sy, al = Math.hypot(aimX, aimY);
+  const a = Math.atan2(aimY, aimX) + (w.spread ? rnd(-w.spread, w.spread) : 0);
+  pshots.push({ kind: 'magic', spr: w.spr, x: sx, y: sy, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, life: w.life || 1.6, t: 0,
+    dmg: w.dmg, blast: w.blast || 0, blastDmg: w.blastDmg || 0, knock: w.knock || 0, bounce: w.bounce || 0, boom: w.boom || 'boom', dead: false });
+}
+function explode(s) {
+  s.dead = true;
+  if (s.blast > 0) {
+    sfxAt(s.boom, s.x, s.y, s.blast < 1.2 ? 0.5 : 1);
+    pshots.push({ kind: 'boom', x: s.x, y: s.y, vx: 0, vy: 0, life: 0.25, static: true, dead: false, size: s.blast });
+    for (const m of monsters) {
+      if (!m.dead && Math.hypot(m.x - s.x, m.y - s.y) < s.blast) hurtMonster(m, roll(s.blastDmg), s.knock, 0.2, s.x, s.y);
+    }
+  }
+}
+function updatePlayerShots(dt) {
+  for (const s of pshots) {
+    if (s.dead) continue;
+    if (s.static) { s.life -= dt; if (s.life <= 0) s.dead = true; continue; }
+    s.life -= dt; s.t += dt;
+    const steps = 4;
+    for (let k = 0; k < steps && !s.dead; k++) {
+      const px = s.x, py = s.y;
+      s.x += s.vx * dt / steps; s.y += s.vy * dt / steps;
+      if (solid(s.x, s.y)) {
+        if (s.bounce > 0) {                                  // firemace spheres skip off walls
+          s.bounce--;
+          if (!solid(px, s.y)) { s.vx = -s.vx; s.x = px; } else if (!solid(s.x, py)) { s.vy = -s.vy; s.y = py; } else { s.vx = -s.vx; s.vy = -s.vy; s.x = px; s.y = py; }
+          continue;
+        }
+        explode(s); break;
+      }
+      for (const m of monsters) {
+        if (!m.dead && Math.hypot(m.x - s.x, m.y - s.y) < 0.35) {
+          hurtMonster(m, roll(s.dmg));
+          explode(s);
+          break;
+        }
+      }
+    }
+    if (!s.dead && s.life <= 0) s.dead = true;
+  }
+  pshots = pshots.filter(s => !s.dead);
+}
+
+// lightning: the first bolt hits the nearest enemy in front, then arcs to nearby enemies
+function chainLightning(w) {
+  let first = null, bd = Infinity;
+  for (const m of monsters) {
+    if (m.dead || !inCone(m, w.range, w.arc)) continue;
+    const d = Math.hypot(m.x - P.x, m.y - P.y);
+    if (d < bd) { bd = d; first = m; }
+  }
+  if (!first) {
+    // no target: a short spark out in front
+    bolts.push({ hand: true, ax: 0, ay: 0, bx: P.x + Math.cos(P.a) * 3, by: P.y + Math.sin(P.a) * 3, life: 0.12 });
+    return;
+  }
+  const hit = new Set();
+  let cur = first, from = { x: P.x + Math.cos(P.a) * 0.5, y: P.y + Math.sin(P.a) * 0.5 };
+  for (let j = 0; j < w.jumps && cur; j++) {
+    hit.add(cur);
+    bolts.push({ hand: j === 0, ax: from.x, ay: from.y, bx: cur.x, by: cur.y, life: 0.2 });
+    hurtMonster(cur, Math.round(roll(w.dmg) * Math.pow(w.falloff, j)), 0, w.stun);
+    from = { x: cur.x, y: cur.y };
+    let next = null, nd = Infinity;
+    for (const m of monsters) {
+      if (m.dead || hit.has(m)) continue;
+      const d = Math.hypot(m.x - cur.x, m.y - cur.y);
+      if (d < w.chain && d < nd && los(cur.x, cur.y, m.x, m.y)) { nd = d; next = m; }
+    }
+    cur = next;
+  }
+}
+
+// ---------- enemies: their shots, boss moves, the chase map and the AI ----------
+// One enemy projectile from m, `off` radians away from the line to the player (or at absolute angle `abs`).
+function spawnShot(m, off = 0, dmgMulBy = 1, abs = null) {
+  const T = m.foe || P;                                       // whoever it is fighting: you, or an enemy it has a grudge against
+  const a = abs === null ? Math.atan2(T.y - m.y, T.x - m.x) + off : abs;
+  const sp = m.boss ? 4.2 : 3.2;
+  shots.push({ x: m.x, y: m.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 4, kind: m.shot, t: 0, owner: m,
+    dmg: Math.max(1, Math.round((m.boss ? (6 + 1.4 * zoneOf(level)) * bossDmgK() : m.dmg) * dmgMulBy)) });   // bosses: 8 melee / 6 a shot in the crypt, 22 / 19 at the top   // a regular enemy's shot hits as hard as its claws
+}
+// A volley at the player: `burst` shots fanned out.
+function volley(m) {
+  m.atk = ATK_T; msnd(m, 'shot') || sfxAt('eshot', m.x, m.y, 0.8);
+  const n = m.burst || 1;
+  for (let i = 0; i < n; i++) spawnShot(m, (i - (n - 1) / 2) * 0.22, n > 2 ? 0.6 : n > 1 ? 0.55 : 1);   // a fan shares its damage out
+}
+// Boss extras, run every frame while it can see you (see BOSS_MOVES).
+function bossMoves(m, dt, d) {
+  const rage = m.hp < m.maxHp / 2 ? 0.7 : 1;                  // below half health everything comes faster
+  if (m.phase2 && !m.p2 && m.hp < m.maxHp / 2) {              // second phase: new moves, announced with a blast in every direction
+    m.p2 = true; Object.assign(m, m.phase2); m.ringT = m.ring ? m.ring[1] : 9; m.stun = 0;
+    for (let i = 0; i < 18; i++) spawnShot(m, 0, 0.5, i / 18 * Math.PI * 2);
+    P.nova = 0.3; msnd(m, 'see', 1.2); showMsg(m.phase2Msg || `${m.name} is enraged`);
+  }
+  if (m.ring && (m.ringT -= dt) <= 0) {
+    m.ringT = m.ring[1] * rage; m.atk = ATK_T; msnd(m, 'shot') || sfxAt('eshot', m.x, m.y);
+    for (let i = 0; i < m.ring[0]; i++) spawnShot(m, 0, 0.5, m.ph + i / m.ring[0] * Math.PI * 2);
+    m.ph += 0.3;
+  }
+  if (m.summon && (m.sumT -= dt) <= 0) {
+    m.sumT = m.summon[2] * rage;
+    if (monsters.filter(o => o.minion && !o.dead).length < m.summon[1]) {
+      for (let tries = 0; tries < 12; tries++) {
+        const a = rnd(0, 6.28), x = m.x + Math.cos(a) * 1.4, y = m.y + Math.sin(a) * 1.4;
+        if (blocked(x, y)) continue;
+        const k = spawnMonster(x, y, m.summon[0], level); k.minion = true; k.woke = true; monsters.push(k);
+        msnd(m, 'see', 0.8); break;
+      }
+    }
+  }
+  if (m.blink && (m.blinkT -= dt) <= 0 && d > 3) {
+    m.blinkT = m.blink[0] * rage;
+    for (let tries = 0; tries < 16; tries++) {
+      const a = rnd(0, 6.28), x = P.x + Math.cos(a) * 3.2, y = P.y + Math.sin(a) * 3.2;
+      if (blocked(x, y) || !los(x, y, P.x, P.y)) continue;
+      m.x = x; m.y = y; m.mcool = 1.6; m.rcool = Math.max(m.rcool, 1.2); sfxAt('stairs', x, y); break;   // a beat to react after it appears
+    }
+  }
+  if (m.streamN > 0 && (m.streamT -= dt) <= 0) { m.streamN--; m.streamT = m.stream[1]; m.atk = ATK_T; sfxAt('eshot', m.x, m.y, 0.6); spawnShot(m, rnd(-0.07, 0.07), 0.3); }
+}
+function updateShots(dt) {
+  for (const s of shots) {
+    s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; s.t += dt;
+    if (solid(s.x, s.y)) { s.life = -1; continue; }
+    if (Math.hypot(s.x - P.x, s.y - P.y) < 0.4) { s.life = -1; sfx('eboom', 0.7); hurtPlayer(s.dmg, s.x - s.vx, s.y - s.vy, foeName(s.owner)); continue; }
+    if (s.owner) for (const o of monsters) {                  // enemy shots hit other enemies too (never their own kind)
+      if (o.dead || o === s.owner || o.kind === s.owner.kind || Math.hypot(o.x - s.x, o.y - s.y) > (o.boss ? 0.5 : 0.3)) continue;
+      s.life = -1; monsterHurt(o, s.dmg, s.owner); break;
+    }
+  }
+  shots = shots.filter(s => s.life > 0);
+}
+
+// Chase map: steps from every open cell to the player's cell, redone a few times a second. Enemies that have noticed
+// you follow it downhill when they lose sight of you, so they come round corners instead of forgetting you.
+let flow = null, flowT = 0;
+function updateFlow() {
+  if (!flow || flow.length !== W * H) flow = new Int16Array(W * H);
+  flow.fill(-1);
+  const start = Math.floor(P.y) * W + Math.floor(P.x), q = [start]; flow[start] = 0;
+  const propCells = new Set(props.filter(p => p.solid).map(p => Math.floor(p.y) * W + Math.floor(p.x)));
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i], d = flow[c] + 1; if (d > 40) break;
+    for (const n of [c + 1, c - 1, c + W, c - W]) {
+      if (n < 0 || n >= flow.length || flow[n] >= 0) continue;
+      const t = map[n]; if ((t !== 0 && t !== STAIRS) || propCells.has(n)) continue;
+      flow[n] = d; q.push(n);
+    }
+  }
+}
+function updateMonsters(dt) {
+  if ((flowT -= dt) <= 0) { flowT = 0.25; updateFlow(); }
+  for (const m of monsters) {
+    if (m.dead) { m.dieT += dt; continue; }               // corpses only play out their death frames
+    m.hurt -= dt; m.mcool -= dt; m.rcool -= dt; m.atk = (m.atk || 0) - dt; m.animT = (m.animT || 0) + dt;
+    if (m.prop) continue;                                   // pods just sit there
+    if (m.kbx || m.kby) {                                   // knockback slides out over ~0.2 s
+      moveEnt(m, m.kbx * dt, m.kby * dt);
+      const decay = Math.max(0, 1 - 9 * dt); m.kbx *= decay; m.kby *= decay;
+      if (Math.abs(m.kbx) + Math.abs(m.kby) < 0.05) m.kbx = m.kby = 0;
+    }
+    if (m.stun > 0) { m.stun -= dt; continue; }             // stunned: no moving or attacking
+    if (m.grudge && (m.grudge.dead || (m.grudgeT -= dt) <= 0 || !los(m.x, m.y, m.grudge.x, m.grudge.y))) m.grudge = null;
+    const T = m.grudge || P; m.foe = m.grudge;                 // its target this frame
+    const hit = () => { if (T === P) hurtPlayer(m.dmg, m.x, m.y, foeName(m)); else monsterHurt(T, m.dmg, m); };
+    const ex = T.x - m.x, ey = T.y - m.y, d = Math.hypot(ex, ey) || 1;
+    const spd = (0.85 + 0.04 * zoneOf(level) + 0.01 * ((level - 1) % 10)) * m.speed * dt;
+    if (m.lungeT > 0) {                                     // mid-charge: straight on, three times as fast
+      m.lungeT -= dt; moveEnt(m, m.lx * spd * 3, m.ly * spd * 3);
+      if (d <= (m.boss ? 1.6 : 1.0) && m.mcool <= 0) { m.mcool = 1.0; m.atk = ATK_T; m.lungeT = 0; msnd(m, 'atk'); hit(); }
+      continue;
+    }
+    if (d < 11 && los(m.x, m.y, T.x, T.y)) {
+      if (!m.woke) { m.woke = true; msnd(m, 'see'); }       // first sight of you: its alert cry
+      if (m.boss) bossMoves(m, dt, d);
+      if (m.ranged && m.rcool <= 0 && d > 2.2) {
+        m.rcool = m.boss ? 2.1 - 0.07 * zoneOf(level) : 2.6;        // early bosses shoot less often: every 2.1 s in the crypt, 1.5 s at the top
+        if (m.stream) { m.streamN = m.stream[0]; m.streamT = 0; m.rcool = 1.6 + m.stream[0] * m.stream[1]; }
+        else volley(m);
+      }
+      if (m.lunge && (m.lungeCd -= dt) <= 0 && d > 2.2 && d < 7) {
+        m.lungeCd = m.boss ? rnd(4.5, 6.5) : rnd(2.5, 4.5); m.lungeT = 0.45; m.lx = ex / d; m.ly = ey / d; msnd(m, 'atk', 0.8);
+      }
+      const reach = m.boss ? 1.3 : 0.9;
+      const dir = d > Math.max(reach, m.keep) ? 1 : (m.keep && d < m.keep - 1.2 ? -0.6 : 0);   // close in, hold, or back off
+      const wv = m.weave ? Math.sin(m.animT * 2.2 + m.ph) * m.weave : 0;                       // sideways drift
+      if (dir || wv) moveEnt(m, (ex / d * dir - ey / d * wv) * spd, (ey / d * dir + ex / d * wv) * spd);
+      if (d <= (m.boss ? 1.6 : 1.0) && m.mcool <= 0) { m.mcool = 1.0; m.atk = ATK_T; msnd(m, 'atk'); hit(); }
+    } else if (m.woke && flow[Math.floor(m.y) * W + Math.floor(m.x)] > 0) {   // lost sight of you: follow the chase map
+      const c = Math.floor(m.y) * W + Math.floor(m.x); let best = c;
+      for (const n of [c + 1, c - 1, c + W, c - W]) if (flow[n] >= 0 && flow[n] < flow[best]) best = n;
+      const tx = (best % W) + 0.5 - m.x, ty = ((best / W) | 0) + 0.5 - m.y, tl = Math.hypot(tx, ty) || 1;
+      moveEnt(m, tx / tl * spd, ty / tl * spd);
+    } else {
+      m.wander -= dt;
+      if (m.wander <= 0) { m.wander = rnd(1, 3); m.wa = rnd(0, Math.PI * 2); }
+      moveEnt(m, Math.cos(m.wa) * spd * 0.4, Math.sin(m.wa) * spd * 0.4);
+    }
+  }
+}
+
+// ---------- the per-frame update: input, movement, traps, doors, pickups, stairs ----------
+// ---- movement feel ----
+// Sticks are analog with a dead zone and a response curve; speed and turning ease in and out instead of snapping.
+const MOVE_SPEED = 3.0, MOVE_ACCEL = 14, MOVE_DECEL = 18;   // cells/s, and how fast velocity catches up
+const TURN_SPEED = 3.0, TURN_ACCEL = 16;                    // rad/s at full tilt
+const DEAD = 0.12;
+const stickCurve = v => { const a = Math.abs(v); if (a < DEAD) return 0; const t = (a - DEAD) / (1 - DEAD); return Math.sign(v) * t * t * 0.4 + Math.sign(v) * t * 0.6; };
+function update(dt) {
+  // turning: keys or right stick, curved so small tilts aim finely, smoothed so it ramps rather than jerks
+  const look = gp.look || (window.RQPad && RQPad.state.look.x) || 0;      // a controller's right stick, or the test pad's
+  const turnIn = Math.abs(look) > DEAD ? stickCurve(look) : (keys[K.tr] ? 1 : 0) - (keys[K.tl] ? 1 : 0);
+  P.turnV = (P.turnV || 0) + (turnIn * TURN_SPEED - (P.turnV || 0)) * Math.min(1, TURN_ACCEL * dt);
+  P.a += P.turnV * dt;
+  const dx = Math.cos(P.a), dy = Math.sin(P.a);
+  const rx = -dy, ry = dx;
+
+  // moving: when the left stick is held, use it alone (the pad also presses WASD past ~35% tilt; mixing them
+  // made it snap to full speed). Keyboard keeps full-speed digital input.
+  let f, s;
+  const jx = touchState.joyX + gp.mx, jy = touchState.joyY + gp.my, jm = Math.hypot(jx, jy);   // test pad or controller left stick
+  if (jm > DEAD) {
+    const k = stickCurve(Math.min(1, jm)) / jm;          // analog: tilt sets speed, direction stays exact
+    f = -jy * k; s = jx * k;
+  } else {
+    f = (keys[K.fwd] || keys.ArrowUp ? 1 : 0) - (keys[K.back] || keys.ArrowDown ? 1 : 0);
+    s = (keys[K.right] ? 1 : 0) - (keys[K.left] ? 1 : 0);
+    const l = Math.hypot(f, s); if (l > 1) { f /= l; s /= l; }
+  }
+  const tvx = (dx * f + rx * s) * MOVE_SPEED, tvy = (dy * f + ry * s) * MOVE_SPEED;
+  const rate = (f || s ? MOVE_ACCEL : MOVE_DECEL) * dt;
+  P.vx = (P.vx || 0) + (tvx - (P.vx || 0)) * Math.min(1, rate);
+  P.vy = (P.vy || 0) + (tvy - (P.vy || 0)) * Math.min(1, rate);
+  if (Math.abs(P.vx) + Math.abs(P.vy) > 0.001) {
+    const ox = P.x, oy = P.y;
+    moveEnt(P, P.vx * dt, P.vy * dt);
+    if (P.x === ox) P.vx *= 0.5;     // bumping a wall bleeds that axis instead of storing speed against it
+    if (P.y === oy) P.vy *= 0.5;
+  }
+
+  P.fire -= dt; P.flash -= dt; P.hurt -= dt; msgT -= dt; sealMsgT -= dt; P.fury -= dt; P.ward -= dt; P.nova -= dt; P.hitT = (P.hitT || 0) - dt;
+  P.anim = Math.max(0, P.anim - dt * (P.animRate || 2.5));
+  P.swingT += dt;
+  P.hitFlash = Math.max(0, P.hitFlash - dt);
+  for (const b of bolts) b.life -= dt;
+  bolts = bolts.filter(b => b.life > 0);
+  if (msgT <= 0) msgEl.style.opacity = 0;
+  if (keys[K.fire] || padFire || gp.fire) fire();
+
+  updateMonsters(dt);
+  ambienceTick(dt);
+  actT -= dt;                                                 // now and then something nearby growls
+  if (actT <= 0) {
+    actT = rnd(2.5, 6);
+    const near = monsters.filter(m => !m.dead && !m.prop && Math.hypot(m.x - P.x, m.y - P.y) < 10);
+    if (near.length) msnd(near[(Math.random() * near.length) | 0], 'act', 0.7);
+  }
+  updateShots(dt);
+  updatePlayerShots(dt);
+  if (pendingWin > 0) { pendingWin -= dt; if (pendingWin <= 0) { victory(); return; } }
+  if (!running) return;
+
+  for (const it of items) {
+    if (!it.taken && Math.hypot(it.x - P.x, it.y - P.y) < 0.55) { it.taken = true; pickupItem(it.kind); }
+  }
+  items = items.filter(i => !i.taken);
+
+  lockMsgT -= dt; trapHurtT -= dt; zoneStat.t += dt; runT += dt;
+  for (const d of darts) {                                   // dart walls: a dart every 2.4 s while you are near
+    if ((d.t -= dt) > 0) continue;
+    d.t = 2.4;
+    const ox = d.x + 0.5 + d.dx * 0.7, oy = d.y + 0.5 + d.dy * 0.7;
+    if (Math.hypot(ox - P.x, oy - P.y) > 10) continue;
+    sfxAt('swing', ox, oy, 0.8);
+    shots.push({ x: ox, y: oy, vx: d.dx * 6, vy: d.dy * 6, life: 3, kind: 'spit', t: 0, dmg: Math.round(6 * dmgMul(level)) });
+  }
+  for (const tr of traps) {                                  // spikes: a scrape of metal as they come out, and they bite
+    const up = trapUp(tr);
+    if (up && !tr.was) sfxAt('swing', tr.x + 0.5, tr.y + 0.5, 0.7);
+    tr.was = up;
+    if (up && trapHurtT <= 0 && Math.floor(P.x) === tr.x && Math.floor(P.y) === tr.y) { trapHurtT = 0.6; hurtPlayer(Math.round(TRAP_DMG * dmgMul(level)), undefined, undefined, 'floor spikes'); showMsg('Spikes!'); }
+  }
+  if (level > 0) {                                           // walk into a locked door or a secret wall while facing it
+    const ax = Math.floor(P.x + Math.cos(P.a) * 0.62), ay = Math.floor(P.y + Math.sin(P.a) * 0.62), at = ay * W + ax, t = map[at];
+    if (t === LOCKED) {
+      if (P.keys > 0) { P.keys--; map[at] = 0; opened.push([at, 'door']); sfx('door'); showMsg('The door opens'); }
+      else if (lockMsgT <= 0) { lockMsgT = 2.5; sfx('noway'); showMsg('Locked. The key is somewhere on this floor'); }
+    } else if (t === SECRET) {
+      map[at] = 0; opened.push([at, 'secret']); secrets.found++; sfx('power'); showMsg(`A secret room! (${secrets.found} of ${secrets.total})`);
+      if (secrets.total >= 2 && secrets.found === secrets.total) unlock('secrets');
+    }
+  }
+  if (level === 0) {
+    if (Math.hypot(P.x - 3.5, P.y - 1.5) < 1.1) { nextLevel(); return; }
+  } else if (map[Math.floor(P.y) * W + Math.floor(P.x)] === STAIRS && level < FINAL) {
+    if (!bossAlive()) { nextLevel(); return; }
+    if (sealMsgT <= 0) { showMsg('Sealed until the guardian falls'); sealMsgT = 3; sfx('noway'); }
+  }
+
+  if (level > 0) {
+    const cx = Math.floor(P.x), cy = Math.floor(P.y);
+    for (let yy = cy - 4; yy <= cy + 4; yy++) for (let xx = cx - 4; xx <= cx + 4; xx++) {
+      if (xx >= 0 && yy >= 0 && xx < W && yy < H && Math.hypot(xx - P.x, yy - P.y) <= 4.2)
+        explored[yy * W + xx] = 1;
+    }
+  }
+
+  hpfill.style.width = (P.hp / P.maxHp * 100) + '%';
+  const wdef = WEAPONS[P.weapon];
+  const ammoTxt = wdef.ammo ? P.ammo[P.weapon] : '∞';
+  const b = monsters.find(m => m.boss && !m.dead);
+  const floorTxt = level === 0 ? 'ENTRANCE' : `FLOOR ${level} · ${ZONES[zoneOf(level)].name.replace('THE ', '')}`;
+  const extra = (P.keys > 0 ? ' · KEY' : '') + (P.armor > 0 ? ` · ARMOUR ${P.armor}` : '') + (P.fury > 0 ? ` · FURY ${Math.ceil(P.fury)}s` : '') + (P.ward > 0 ? ` · WARD ${Math.ceil(P.ward)}s` : '');
+  stats.textContent = `HP ${Math.ceil(P.hp)}/${P.maxHp}${extra} · ${floorTxt} · ${wdef.name} ${ammoTxt} · SLAIN ${kills}`;
+  const bar = $('bossbar'), showBar = b && b.woke && running;
+  bar.style.display = showBar ? 'flex' : 'none';
+  if (showBar) { $('bossname').textContent = b.name; $('bossfill').style.width = Math.max(0, b.hp / b.maxHp * 100) + '%'; }
+}
+
+// ---------- rendering ----------
+const FLOOR_A = [84, 74, 64], FLOOR_B = [66, 58, 50], CEIL_A = [40, 36, 52], CEIL_B = [30, 27, 40], STAIR_C = [70, 140, 255];
+function rgbf(c, f) { return (255 << 24) | ((c[2] * f) << 16) | ((c[1] * f) << 8) | (c[0] * f); }
+function sh(c, f) {
+  const r = Math.min(255, (c & 255) * f);
+  const g = Math.min(255, ((c >>> 8) & 255) * f);
+  const b = Math.min(255, ((c >>> 16) & 255) * f);
+  return (255 << 24) | (b << 16) | (g << 8) | r;
+}
+
+const skyCol = new Int32Array(RW);
+function renderFloorCeil(dirX, dirY, planeX, planeY) {
+  const rdx0 = dirX - planeX, rdy0 = dirY - planeY, rdx1 = dirX + planeX, rdy1 = dirY + planeY;
+  const pulse = 0.8 + 0.2 * Math.sin(performance.now() / 300);
+  if (SKY_PX) for (let x = 0; x < RW; x++) {
+    const ang = P.a + Math.atan((2 * x / RW - 1) * FOV_PLANE);
+    skyCol[x] = ((((ang / (Math.PI * 2)) * SKY_W) % SKY_W + SKY_W) % SKY_W) | 0;
+  }
+  for (let y = 0; y < RH; y++) {
+    const p = y - RH / 2;
+    const isFloor = p > 0;
+    const rowDist = (RH / 2) / Math.max(Math.abs(p), 0.5);
+    const stepX = rowDist * (rdx1 - rdx0) / RW, stepY = rowDist * (rdy1 - rdy0) / RW;
+    let wx = P.x + rowDist * rdx0, wy = P.y + rowDist * rdy0;
+    const fog = Math.max(0, 1 - rowDist / 10);
+    const row = y * RW;
+    for (let x = 0; x < RW; x++) {
+      const cx = Math.floor(wx), cy = Math.floor(wy);
+      const inside = cx >= 0 && cy >= 0 && cx < W && cy < H;
+      const t = inside ? map[cy * W + cx] : 1;
+      const chk = (cx + cy) & 1;
+      let c, k = fog;
+      if (isFloor) {
+        const trp = inside && trapAt && trapAt[cy * W + cx];
+        if (trp) { pix[row + x] = sh(TRAP_TEX[trapUp(traps[trp - 1]) ? 1 : 0][(((wy - cy) * 64) & 63) * 64 + (((wx - cx) * 64) & 63)], k); wx += stepX; wy += stepY; continue; }
+        if (t === STAIRS) {
+          // stair treads running across the cell, with dark nosing lines
+          c = chk ? [96, 90, 80] : [84, 78, 70];   // plain stone; the flight itself is the sprite
+        }
+        else if (FLOOR_TEX) { pix[row + x] = sh(FLOOR_TEX[(((wy - cy) * 64) & 63) * 64 + (((wx - cx) * 64) & 63)], k); wx += stepX; wy += stepY; continue; }
+        else c = chk ? FLOOR_A : FLOOR_B;
+      } else if (SKY_PX) {   // open sky: sample the panorama by ray angle (skyCol) and screen row, no fog
+        pix[row + x] = SKY_PX[Math.min(SKY_H - 1, (y * SKY_H / (RH / 2)) | 0) * SKY_W + skyCol[x]]; wx += stepX; wy += stepY; continue;
+      } else if (CEIL_TEX) { pix[row + x] = sh(CEIL_TEX[(((wy - cy) * 64) & 63) * 64 + (((wx - cx) * 64) & 63)], k * 0.75); wx += stepX; wy += stepY; continue; }
+      else {
+        c = chk ? CEIL_A : CEIL_B;
+      }
+      pix[row + x] = rgbf(c, Math.min(1, k));
+      wx += stepX; wy += stepY;
+    }
+  }
+}
+
+function renderWalls(dirX, dirY, planeX, planeY) {
+  for (let x = 0; x < RW; x++) {
+    const camX = 2 * x / RW - 1;
+    const rdx = dirX + planeX * camX, rdy = dirY + planeY * camX;
+    let mx = Math.floor(P.x), my = Math.floor(P.y);
+    const ddx = rdx === 0 ? 1e30 : Math.abs(1 / rdx);
+    const ddy = rdy === 0 ? 1e30 : Math.abs(1 / rdy);
+    let sx, sy, sdx, sdy;
+    if (rdx < 0) { sx = -1; sdx = (P.x - mx) * ddx; } else { sx = 1; sdx = (mx + 1 - P.x) * ddx; }
+    if (rdy < 0) { sy = -1; sdy = (P.y - my) * ddy; } else { sy = 1; sdy = (my + 1 - P.y) * ddy; }
+
+    let side = 0, tile = 0;
+    for (;;) {
+      if (sdx < sdy) { sdx += ddx; mx += sx; side = 0; }
+      else { sdy += ddy; my += sy; side = 1; }
+      tile = (mx >= 0 && my >= 0 && mx < W && my < H) ? map[my * W + mx] : 1;
+      if (tile > 0 && tile !== STAIRS) break;
+    }
+
+    const perp = side === 0 ? (mx - P.x + (1 - sx) / 2) / rdx : (my - P.y + (1 - sy) / 2) / rdy;
+    zBuf[x] = perp;
+
+    const lineH = RH / perp;
+    const rawStart = RH / 2 - lineH / 2;
+    const y0 = Math.max(0, Math.floor(rawStart));
+    const y1 = Math.min(RH - 1, Math.floor(RH / 2 + lineH / 2));
+
+    let wallX = side === 0 ? P.y + perp * rdy : P.x + perp * rdx;
+    wallX -= Math.floor(wallX);
+    let texX = Math.floor(wallX * 64);
+    if ((side === 0 && rdx > 0) || (side === 1 && rdy < 0)) texX = 63 - texX;
+
+    const tex = WALLS[tile];
+    const step = 64 / lineH;
+    let texPos = (y0 - rawStart) * step;
+    const f = Math.max(0.04, 1 - perp / 12) * (side ? 0.66 : 1);
+    for (let y = y0; y <= y1; y++) {
+      const ty = Math.floor(texPos) & 63;
+      texPos += step;
+      pix[y * RW + x] = sh(tex[ty * 64 + texX], f);
+    }
+  }
+}
+
+const monArtKey = m => m.boss ? 'boss' + (zoneOf(level) + 1) : m.kind;   // boss1 ... boss10, one per zone
+function renderSprites(dirX, dirY, planeX, planeY) {
+  const list = [];
+  for (const m of monsters) {
+    const art = MON_PX[m.art || monArtKey(m)];
+    if (art) {   // animated sprite: death frames (the last one stays as a corpse), else attack, pain flinch or walk cycle
+      let f;
+      if (m.dead) f = art.die[Math.min(art.die.length - 1, Math.floor((m.dieT || 0) * DIE_FPS))];
+      else if (m.atk > 0) f = art.atk[Math.min(art.atk.length - 1, Math.floor((1 - m.atk / ATK_T) * art.atk.length))];
+      else if (m.hurt > 0) f = art.pain;
+      else f = art.walk[Math.floor((m.animT || 0) * WALK_FPS * Math.min(1.6, Math.max(0.7, m.speed))) % art.walk.length];
+      list.push({ x: m.x, y: m.y, tex: art.frames[f], hurt: !m.dead && m.hurt > 0, mon: true, k: art.k,
+        lift: m.fly && !m.dead ? 0.03 * Math.sin((m.animT || 0) * 3 + m.ph) : 0 });
+    } else if (!m.dead) list.push({ x: m.x, y: m.y, tex: m.tex, hurt: m.hurt > 0, v: m.boss ? 0.05 : 0.12, scale: m.scale });
+  }
+  for (const it of items) if (!it.taken) {
+    const art = ITEM_PX[it.kind];
+    if (art) list.push({ x: it.x, y: it.y, tex: art.frames[Math.floor(performance.now() / 180) % art.frames.length], hurt: false, mon: true, k: art.k,
+      lift: it.kind === 'fury' || it.kind === 'ward' || it.kind === 'key' ? 0.12 + 0.03 * Math.sin(performance.now() / 300) : 0 });      // power-ups hover
+    else list.push({ x: it.x, y: it.y, tex: SPR[SPR[it.kind] ? it.kind : it.kind === 'drop' ? 'ammo' : it.kind === 'key' ? 'crate' : 'potion'], hurt: false, v: it.kind === 'drop' ? 0.38 : 0.3, scale: it.kind === 'drop' ? 0.5 : 0.8 });
+  }
+  for (const pr of props) {
+    const art = PROP_PX[pr.kind];
+    if (art) list.push({ x: pr.x, y: pr.y, tex: art.frames[Math.floor(performance.now() / 140) % art.frames.length], hurt: false, mon: true, k: art.k, lift: 0 });
+  }
+  for (const s of shots) {
+    const art = SHOT_PX[s.kind];
+    if (art) list.push({ x: s.x, y: s.y, tex: art.frames[Math.floor(s.t * 10) % art.frames.length], hurt: false, mon: true, k: art.k, lift: 0 });
+    else list.push({ x: s.x, y: s.y, tex: SPR.fire, hurt: false, v: 0, scale: 0.5 });
+  }
+  for (const s of pshots) {
+    const art = s.kind !== 'boom' && SHOT_PX[s.spr];
+    if (art) { if ((s.x - P.x) ** 2 + (s.y - P.y) ** 2 > 0.6) list.push({ x: s.x, y: s.y, tex: art.frames[Math.floor(s.t * 12) % art.frames.length], hurt: false, mon: true, k: art.k, lift: 0 }); continue; }
+    const tex = s.kind === 'boom' ? SPR.fire : SPR.magic;
+    list.push({ x: s.x, y: s.y, tex, hurt: false, v: 0, scale: s.kind === 'boom' ? (s.size || 1.6) : 0.7, minD: s.kind === 'magic' ? 0.9 : 0.2 });
+  }
+  if (stairsPos && level > 0) list.push({ x: stairsPos.x, y: stairsPos.y, tex: SPR.stairs, hurt: false, v: 0.15, scale: 1 });
+  for (const s of list) s.d = (s.x - P.x) ** 2 + (s.y - P.y) ** 2;
+  list.sort((a, b) => b.d - a.d);
+
+  const inv = 1 / (planeX * dirY - dirX * planeY);
+  for (const s of list) {
+    const sx = s.x - P.x, sy = s.y - P.y;
+    const tx = inv * (dirY * sx - dirX * sy);
+    const ty = inv * (-planeY * sx + planeX * sy);
+    if (ty <= (s.minD || 0.2)) continue;
+    if (s.mon) { drawMonsterSprite(s, tx, ty); continue; }
+    const size = Math.floor(RH / ty * s.scale);
+    if (size <= 0) continue;
+    const scrX = Math.floor((RW / 2) * (1 + tx / ty));
+    const top = Math.floor(RH / 2 - size / 2 + size * s.v);
+    const x0 = Math.floor(scrX - size / 2), x1 = x0 + size;
+    const y0 = Math.max(0, top), y1 = Math.min(RH - 1, top + size - 1);
+    const fog = Math.max(0.12, 1 - ty / 12) * (s.hurt ? 1.7 : 1);
+    for (let x = Math.max(0, x0); x < Math.min(RW, x1); x++) {
+      if (ty >= zBuf[x]) continue;
+      const tX = Math.floor((x - x0) * 32 / size);
+      for (let y = y0; y <= y1; y++) {
+        const tY = Math.floor((y - top) * 32 / size);
+        const c = s.tex[tY * 32 + tX];
+        if ((c >>> 24) < 128) continue;
+        pix[y * RW + x] = sh(c, fog);
+      }
+    }
+  }
+}
+
+// Tall monster sprite standing on the floor (floor line for distance ty is RH/2 + RH/(2*ty)).
+function drawMonsterSprite(s, tx, ty) {
+  const t = s.tex, u = RH / ty * s.k, hpx = t.h * u, wpx = t.w * u;      // u: screen pixels per sprite pixel
+  if (hpx < 1) return;
+  const scrX = (RW / 2) * (1 + tx / ty);
+  const top = RH / 2 + RH / (2 * ty) - t.oy * u - (s.lift || 0) * RH / ty, bottom = top + hpx, x0 = scrX - t.ox * u;
+  const fog = Math.max(0.12, 1 - ty / 12);
+  const ys = Math.max(0, Math.floor(top)), ye = Math.min(RH - 1, Math.floor(bottom));
+  for (let x = Math.max(0, Math.floor(x0)); x < Math.min(RW, Math.ceil(x0 + wpx)); x++) {
+    if (ty >= zBuf[x]) continue;
+    let tX = Math.floor((x - x0) * t.w / wpx); if (tX < 0 || tX >= t.w) continue;
+    for (let y = ys; y <= ye; y++) {
+      const tY = Math.floor((y - top) * t.h / hpx); if (tY < 0 || tY >= t.h) continue;
+      const c = t[tY * t.w + tX];
+      if ((c >>> 24) < 128) continue;
+      pix[y * RW + x] = s.hurt ? sh((c & 0xff00ffff) | 0x30 << 16, fog * 1.8) : sh(c, fog);   // hit: brighter, warmer flash
+    }
+  }
+}
+
+function drawHitFlash() {
+  if (P.hitFlash <= 0) return;
+  const k = P.hitFlash / 0.15, cx = RW / 2, cy = RH * 0.45;
+  bctx.strokeStyle = `rgba(255,240,180,${k})`; bctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3 + 0.3;
+    bctx.beginPath();
+    bctx.moveTo(cx + Math.cos(a) * 4, cy + Math.sin(a) * 4);
+    bctx.lineTo(cx + Math.cos(a) * (4 + 7 * k), cy + Math.sin(a) * (4 + 7 * k));
+    bctx.stroke();
+  }
+  bctx.lineWidth = 1;
+}
+
+// ---- lightning bolts and beams (drawn over the 3D view) ----
+// project a world point to screen-x (returns null if behind the camera)
+function projectX(x, y) {
+  const dirX = Math.cos(P.a), dirY = Math.sin(P.a);
+  const planeX = -dirY * FOV_PLANE, planeY = dirX * FOV_PLANE;
+  const inv = 1 / (planeX * dirY - dirX * planeY);
+  const sx = x - P.x, sy = y - P.y;
+  const tx = inv * (dirY * sx - dirX * sy);
+  const ty = inv * (-planeY * sx + planeX * sy);
+  return ty > 0.2 ? RW / 2 * (1 + tx / ty) : null;
+}
+// draw one jagged bolt between two screen points: blue glow, white core, impact flash
+function drawJaggedBolt(x1, y1, x2, y2, col) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;                 // perpendicular: jitter across the bolt, not along it
+  const amp = Math.min(9, len * 0.1);
+  const pts = [[x1, y1]];
+  for (let i = 1; i < 10; i++) {
+    const t = i / 10, off = rnd(-1, 1) * amp;
+    pts.push([x1 + dx * t + nx * off, y1 + dy * t + ny * off]);
+  }
+  pts.push([x2, y2]);
+  const stroke = (col, lw) => {
+    bctx.strokeStyle = col; bctx.lineWidth = lw;
+    bctx.beginPath(); bctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) bctx.lineTo(pts[i][0], pts[i][1]);
+    bctx.stroke();
+  };
+  stroke(col ? col + '88' : 'rgba(80,160,255,0.45)', 3);
+  stroke('#f4fbff', 1);
+  bctx.fillStyle = 'rgba(190,225,255,0.7)';
+  bctx.beginPath(); bctx.arc(x2, y2, 2.5, 0, Math.PI * 2); bctx.fill();
+}
+function drawBolts() {
+  for (const b of bolts) {
+    const y2 = RH / 2;
+    const x2 = projectX(b.bx, b.by);
+    if (x2 === null) continue;
+    let x1, y1;
+    if (b.hand) { [x1, y1] = palmPoint(); }   // from the casting hand's fingertips
+    else {
+      x1 = projectX(b.ax, b.ay);
+      if (x1 === null) continue;
+      y1 = y2;
+    }
+    drawJaggedBolt(x1, y1, x2, y2, b.col);
+  }
+  bctx.lineWidth = 1;
+}
+
+// ---------- held weapons ----------
+// Style rules (from the user's reference shots: Wolf3D, Doom, Hexen, Heretic, Daggerfall):
+//  * BIG: weapons fill the bottom 35-50% of the 320x200 buffer.
+//  * Guns and the crossbow are CENTRED and seen from behind: near end at the bottom edge,
+//    far end (muzzle/bolt tip) up toward the crosshair. Melee and magic come from the RIGHT.
+//  * Everything is outlined (dark 1px edge) with 2-3 tone shading, and real hands with a
+//    sleeve running off the bottom edge.
+//  * Each weapon draws in LOCAL coordinates: x relative to its own centre, y = 0 at the
+//    bottom of the screen, negative y = up. drawHeldWeapon() translates and adds walk bob.
+const OUT = '#1e140c';
+const SK = '#d9a273', SKD = '#a8693f', SKL = '#f2c597', SLV = '#4a3626';
+const RIGHT_X = RW / 2 + 62;               // screen x of right-hand weapons (wand, lightning)
+
+function poly(pts, fill, line = OUT) {
+  bctx.beginPath(); bctx.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) bctx.lineTo(pts[i], pts[i + 1]);
+  bctx.closePath();
+  if (line) { bctx.strokeStyle = line; bctx.lineWidth = 2; bctx.lineJoin = 'round'; bctx.stroke(); }
+  bctx.fillStyle = fill; bctx.fill();
+}
+function ell(x, y, rx, ry, fill, line = OUT) {
+  bctx.beginPath(); bctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  if (line) { bctx.strokeStyle = line; bctx.lineWidth = 2; bctx.stroke(); }
+  bctx.fillStyle = fill; bctx.fill();
+}
+function box(x, y, w, h, fill) { bctx.fillStyle = fill; bctx.fillRect(x, y, w, h); }
+function flash(x, y, size) {               // red/orange/yellow muzzle starburst
+  if (P.flash <= 0) return;
+  const layers = [['#d8321a', 1], ['#ff9a20', 0.68], ['#fff2a0', 0.36]];
+  for (const [col, k] of layers) {
+    bctx.fillStyle = col; bctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const ang = i * Math.PI / 8, r = (i % 2 ? 0.55 : 0.8 + Math.random() * 0.4) * size * k;
+      bctx.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r * 0.85);
+    }
+    bctx.closePath(); bctx.fill();
+  }
+}
+// right fist, back of the hand to the camera, forearm and sleeve running off the bottom edge.
+// (x, y) = middle of the fist; bottom = local y of the screen's bottom edge.
+function drawBigFist(x, y, bottom = 0) {
+  poly([x - 14, y + 6, x + 14, y + 6, x + 32, bottom + 4, x - 2, bottom + 4], SKD);   // forearm
+  if (bottom - y > 26) poly([x - 6, bottom - 14, x + 34, bottom - 14, x + 40, bottom + 4, x - 8, bottom + 4], SLV);
+  poly([x - 19, y - 12, x - 8, y - 17, x + 8, y - 17, x + 18, y - 12, x + 19, y + 8, x - 18, y + 10], SK);
+  poly([x - 18, y + 4, x + 19, y + 3, x + 19, y + 8, x - 18, y + 10], SKD, null);   // underside shadow
+  for (const k of [-12, -4, 4, 12]) ell(x + k, y - 14, 4.2, 3, SKL);                // knuckles
+  for (const k of [-8, 0, 8]) box(x + k - 0.5, y - 11, 1, 13, SKD);                 // finger creases
+  poly([x - 22, y - 6, x - 12, y - 9, x - 10, y + 4, x - 21, y + 6], SK);            // thumb
+  box(x - 20, y - 5, 4, 3, SKL);
+}
+
+// open casting hand for lightning; palmPoint() (screen coords) is also where bolts start (see drawBolts)
+function palmPoint() { return [RW / 2, RH - (P.weapon === 'hstaff' ? 62 : 90)]; }   // where the claw's bolts and the hellstaff's beam leave the weapon
+// ---------- sprite-art weapons ----------
+// Pistol, shotgun, fist, wand and lightning hand use pixelated photo-hand frames from assets.js
+// (built by tools/pack_assets.py from art/). Each frame is a 160x90 image drawn bottom-aligned
+// at 2x, so it fills the 320-wide buffer exactly as authored. At rest a weapon shows `idle`.
+// While P.anim runs 1 -> 0 it steps through `seq` = [[untilProgress, frameIndex], ...],
+// where progress = 1 - P.anim. `glow` adds an orange halo behind a muzzle-flash frame.
+const ART = {   // photo art: only the fist is left (frame sequence over the swing)
+  fist:      { idle: 0, seq: [[0.2, 1], [0.5, 2], [0.78, 1]] }
+};
+const artImgs = {};
+if (window.ASSETS) for (const k in ASSETS) artImgs[k] = ASSETS[k].frames.map(src => { const im = new Image(); im.src = src; return im; });
+function artReady(w) { const f = artImgs[w]; return !!(f && ART[w] && f.every(im => im.complete && im.naturalWidth > 0)); }
+function artFrame(w) {
+  const q = ART[w];
+  if (P.anim <= 0.001) return q.idle;
+  const pr = 1 - P.anim;
+  for (const [u, f] of q.seq) if (pr < u) return f;
+  return q.idle;
+}
+function artTip(w) { const i = artFrame(w), t = ASSETS[w].tips[i]; return [t[0] * 2, RH - 180 + t[1] * 2]; }
+function drawArtWeapon(w) {
+  const i = artFrame(w), q = ART[w], a = P.anim, [tx, ty] = artTip(w);
+  bctx.imageSmoothingEnabled = false;
+  const gl = q.glow && q.glow[i];
+  if (gl) {                                              // halo behind the baked-in muzzle flash
+    bctx.fillStyle = 'rgba(255,150,40,0.55)'; bctx.beginPath(); bctx.arc(tx, ty + 6, gl, 0, Math.PI * 2); bctx.fill();
+    bctx.fillStyle = 'rgba(255,230,120,0.7)'; bctx.beginPath(); bctx.arc(tx, ty + 6, gl * 0.5, 0, Math.PI * 2); bctx.fill();
+  }
+  bctx.drawImage(artImgs[w][i], 0, RH - 180, RW, 180);
+}
+
+// Pack weapons (window.HELD, from tools/enemy_cast.py): frames sit at their original 320x200 screen positions,
+// slid down by `shift` so the idle frame meets the bottom edge, then scaled about the bottom centre (`scale`).
+const heldImgs = {};
+if (window.HELD) for (const w in HELD) { heldImgs[w] = {}; for (const n in HELD[w].frames) { const im = new Image(); im.src = HELD[w].frames[n][0]; heldImgs[w][n] = im; } }
+function heldReady(w) { const f = heldImgs[w]; return !!f && Object.values(f).every(im => im.complete && im.naturalWidth > 0); }
+function drawPackWeapon(w) {
+  const Hd = HELD[w], pr = 1 - P.anim;
+  let names = [Hd.idle];
+  if (P.anim > 0.001) for (const [u, n] of Hd.seq) if (pr < u) { names = n; break; }
+  bctx.imageSmoothingEnabled = false;
+  bctx.save(); bctx.translate(RW / 2, RH); bctx.scale(Hd.scale, Hd.scale); bctx.translate(-RW / 2, -RH + Hd.shift);
+  for (const n of names) bctx.drawImage(heldImgs[w][n], Hd.frames[n][1], Hd.frames[n][2]);
+  bctx.restore();
+}
+// walk bob: weapons sway as the player moves (Doom/Wolf3D style)
+let bobPh = 0, bobAmt = 0, bobLX = 0, bobLY = 0;
+function drawHeldWeapon(cx, base, rec) {
+  const a = P.anim;
+  const mv = Math.min(0.2, Math.hypot(P.x - bobLX, P.y - bobLY)); bobLX = P.x; bobLY = P.y;
+  bobAmt += (Math.min(1, mv / 0.05) - bobAmt) * 0.12; bobPh += mv * 9;   // sway grows with walking speed
+  const bx = Math.round(Math.sin(bobPh) * 6 * bobAmt), by = Math.round(Math.abs(Math.cos(bobPh)) * 5 * bobAmt);
+  const kick = P.flash > 0 ? 7 : 0;
+  bctx.save(); bctx.translate(bx, by);
+  if (heldReady(P.weapon)) drawPackWeapon(P.weapon);
+  else if (artReady(P.weapon)) {
+    drawArtWeapon(P.weapon);
+  } else { bctx.save(); bctx.translate(RIGHT_X, RH); drawBigFist(0, -40); bctx.restore(); }   // no art loaded: a drawn fist for every weapon
+  bctx.restore();
+}
+function drawOverlays() {
+  // weapon in hand
+  const cx = RW / 2, base = RH, rec = P.flash > 0 ? 5 : 0;
+  drawHeldWeapon(cx, base, rec);
+  // damage tint
+  if (P.hurt > 0) {
+    bctx.fillStyle = `rgba(200,0,0,${Math.min(0.45, P.hurt * 1.5)})`;
+    bctx.fillRect(0, 0, RW, RH);
+  }
+  if (P.nova > 0) { bctx.fillStyle = `rgba(150,255,170,${Math.min(0.7, P.nova * 2)})`; bctx.fillRect(0, 0, RW, RH); }   // the Big One's flash
+  if (P.hitT > 0) {                                          // red wedge on a ring round the crosshair, pointing at whatever hit you
+    const rel = P.hitA - P.a - Math.PI / 2, cx = RW / 2, cy = RH / 2, R = 62;
+    bctx.save(); bctx.translate(cx + Math.cos(rel) * R, cy + Math.sin(rel) * R * 0.8); bctx.rotate(rel);
+    bctx.fillStyle = `rgba(${PAL().hit},${Math.min(0.9, P.hitT * 2)})`;
+    bctx.beginPath(); bctx.moveTo(10, 0); bctx.lineTo(-4, -13); bctx.lineTo(0, 0); bctx.lineTo(-4, 13); bctx.closePath(); bctx.fill();
+    bctx.restore();
+  }
+  drawHitFlash();
+  drawBolts();
+  // map: a corner minimap (mapOn 1) or the whole floor, centred over a dark backdrop (mapOn 2)
+  if (mapOn && level > 0) {
+    const full = Number(mapOn) === 2, C = PAL();
+    const cs = full ? Math.max(2, Math.floor(Math.min((RW - 16) / W, (RH - 34) / H))) : 2;
+    const ox = full ? Math.floor((RW - W * cs) / 2) : 4, oy = full ? Math.floor((RH - 12 - H * cs) / 2) + 6 : 4;   // room for the HUD line above and the legend below
+    if (full) { bctx.fillStyle = 'rgba(0,0,0,0.72)'; bctx.fillRect(0, 0, RW, RH); }
+    const dot = (x, y, col, big) => { bctx.fillStyle = col; const k = big && full ? 1 : 0; bctx.fillRect(ox + Math.floor(x) * cs - k, oy + Math.floor(y) * cs - k, cs + 2 * k, cs + 2 * k); };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!explored[y * W + x]) continue;
+      const t = map[y * W + x];
+      bctx.fillStyle = t === STAIRS ? C.stairs : t === LOCKED ? C.lock : (t > 0 ? '#8a8a8a' : '#2e2e35');
+      bctx.fillRect(ox + x * cs, oy + y * cs, cs, cs);
+    }
+    for (const [c, what] of opened) dot(c % W, (c / W) | 0, what === 'secret' ? C.secret : C.lock);
+    for (const tr of traps) if (explored[tr.y * W + tr.x]) dot(tr.x, tr.y, C.trap);
+    for (const it of items) if (explored[Math.floor(it.y) * W + Math.floor(it.x)]) dot(it.x, it.y, C[it.kind] || C.ammo, it.kind === 'key');
+    for (const m of monsters) {
+      if (m.dead || m.prop) continue;
+      if (explored[Math.floor(m.y) * W + Math.floor(m.x)]) dot(m.x, m.y, m.boss ? C.boss : C.foe, m.boss);
+    }
+    bctx.fillStyle = C.you;
+    bctx.fillRect(ox + P.x * cs - 1, oy + P.y * cs - 1, 2, 2);
+    for (let k = 1; k <= 4; k++)
+      bctx.fillRect(ox + (P.x + Math.cos(P.a) * k * 0.6) * cs, oy + (P.y + Math.sin(P.a) * k * 0.6) * cs, 1, 1);
+    if (full) {                                              // legend along the bottom
+      const leg = [[C.you, 'you'], [C.foe, 'enemy'], [C.boss, 'boss'], [C.stairs, 'stairs'], [C.lock, 'door'], [C.key, 'key'], [C.secret, 'secret'], [C.trap, 'trap'], [C.potion, 'potion'], [C.crate, 'cache']];
+      bctx.font = '6px monospace'; bctx.textBaseline = 'middle';
+      let lx = 6; for (const [col, name] of leg) { bctx.fillStyle = col; bctx.fillRect(lx, RH - 9, 4, 4); bctx.fillStyle = '#ddd'; bctx.fillText(name, lx + 6, RH - 6.5); lx += 10 + name.length * 3.7; }
+    }
+  }
+}
+
+function render() {
+  const dirX = Math.cos(P.a), dirY = Math.sin(P.a);
+  const planeX = -dirY * FOV_PLANE, planeY = dirX * FOV_PLANE;
+  renderFloorCeil(dirX, dirY, planeX, planeY);
+  renderWalls(dirX, dirY, planeX, planeY);
+  renderSprites(dirX, dirY, planeX, planeY);
+  bctx.putImageData(img, 0, 0);
+  drawOverlays();
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const s = Math.min(canvas.width / RW, canvas.height / RH);
+  const dw = RW * s, dh = RH * s;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(buf, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+}
+
+// The game draws only in the space RQPad leaves free (its side panels take the rest).
+function resize() {
+  const s = (window.RQPad && RQPad.stage) || { x: 0, y: 0, width: innerWidth, height: innerHeight };
+  canvas.width = Math.max(1, Math.floor(s.width));
+  canvas.height = Math.max(1, Math.floor(s.height));
+  const hud = document.getElementById('hud');
+  hud.style.left = (s.x + 12) + 'px';
+  hud.style.right = (innerWidth - s.x - s.width + 12) + 'px';
+  Object.assign($('bossbar').style, { left: s.x + 'px', right: (innerWidth - s.x - s.width) + 'px', top: (s.y + 66) + 'px' });
+  const ov = document.getElementById('overlay');   // title screen sits in the same free area
+  ov.style.left = s.x + 'px'; ov.style.right = (innerWidth - s.x - s.width) + 'px';
+  ov.style.top = s.y + 'px'; ov.style.bottom = (innerHeight - s.y - s.height) + 'px';
+  // intro: largest 16:9 box inside the free area, so the cutscene never sits under the pad
+  const iw = Math.min(s.width, s.height * 16 / 9), ih = iw * 9 / 16;
+  Object.assign(introCanvas.style, { left: (s.x + (s.width - iw) / 2) + 'px', top: (s.y + (s.height - ih) / 2) + 'px',
+    width: iw + 'px', height: ih + 'px', transform: 'none' });
+  const il = s.x + (s.width - iw) / 2, it = s.y + (s.height - ih) / 2;
+  Object.assign($('endtitle').style, { left: il + 'px', width: iw + 'px', top: (it + ih * 0.07) + 'px', fontSize: (iw * 0.085) + 'px' });   // sized from the picture, not the screen: the pad narrows it
+  Object.assign($('endroll').style, { left: il + 'px', width: iw + 'px', top: (it + ih * 0.3) + 'px', height: (ih * 0.66) + 'px', fontSize: Math.max(9, iw * 0.027) + 'px' });
+  Object.assign(capEl.style, { left: s.x + 'px', right: (innerWidth - s.x - s.width) + 'px',
+    top: 'auto', bottom: (innerHeight - (s.y + (s.height + ih) / 2) + ih * 0.08) + 'px' });
+}
+
+// ---------- intro cinematic (Three.js, low-res PS1-style) ----------
+const PMAX = 520, PR = 6;
+const INTRO_CAM = [
+  { t: 0,    p: [-18, 3, 24],   l: [0, 6, 0] },
+  { t: 2.5,  p: [-18, 3, 24],   l: [0, 8, 0] },
+  { t: 4.5,  p: [-18, 4, 24],   l: [0, 40, 0] },
+  { t: 8,    p: [-50, 45, 85],  l: [0, 130, 0] },
+  { t: 12,   p: [-70, 120, 130], l: [0, 300, 0] },
+  { t: 14.5, p: [0, 2.4, 22],   l: [0, 3.5, 6.2] },
+  { t: 16,   p: [0, 2.4, 15],   l: [0, 3.5, 6.2] }
+];
+const CAPS = [[0.3, 'A: Did you hear that?'], [1.5, 'B: Hear what?'], [2.0, 'A: Something stirred beneath the crypt...'], [2.6, 'The Spire rose from the earth.'],
+  [6, 'Something rose from the dirt.'], [9, 'It did not stop climbing.'], [12.4, 'The sky went dark.'], [14.2, 'The entrance awaits.']];
+let intro = null;
+// one WebGL renderer on the cutscene canvas, shared by the intro and the ending
+let r3 = null;
+function getRenderer3() {
+  if (!r3) { r3 = new THREE.WebGLRenderer({ canvas: introCanvas, antialias: false }); r3.setPixelRatio(1); r3.setSize(320, 180, false); }
+  return r3;
+}
+
+function buildIntro() {
+  const renderer = getRenderer3();
+  const scene = new THREE.Scene();
+  const SKY = 0x8f9fc4;            // dusk blue, darkens to storm as the Spire rises
+  // photo tiles from assets.js on the intro models (pixel-crisp, repeating); plain colours if assets.js is missing
+  const tileTex = (name, rx, ry) => {
+    if (!window.TILES || !TILES[name]) return null;
+    const tx = new THREE.TextureLoader().load(TILES[name]);
+    tx.magFilter = THREE.NearestFilter; tx.minFilter = THREE.NearestFilter;
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(rx, ry);
+    return tx;
+  };
+  const texMat = (name, rx, ry, col, fb) => { const map = tileTex(name, rx, ry); return new THREE.MeshLambertMaterial(map ? { map, color: col } : { color: fb, flatShading: true }); };
+  scene.background = new THREE.Color(SKY);
+  scene.fog = new THREE.Fog(SKY, 150, 480);
+  const cam = new THREE.PerspectiveCamera(55, 320 / 180, 0.5, 1200);
+  const ambient = new THREE.AmbientLight(0xb8c0e0, 0.6);
+  scene.add(ambient);
+  scene.add(new THREE.HemisphereLight(0x9fb0ff, 0x3a2a18, 0.35));           // cool sky above, earthy bounce below
+  const sun = new THREE.DirectionalLight(0xffb070, 1.0);                       // low, warm sunset light raking the tower
+  sun.position.set(-90, 45, 70); scene.add(sun);
+  const torches = [-3.6, 3.6].map(x => {                                       // flickering torches either side of the door
+    const l = new THREE.PointLight(0xff8a2a, 2.2, 22, 2); l.position.set(x, 6.2, 1.6);   // added to the door group below, so they rise with it
+    const flame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.5), new THREE.MeshBasicMaterial({ color: 0xffb040 }));
+    flame.position.copy(l.position); l.userData.flame = flame; return l;
+  });
+
+  // rolling low-poly ground, flat near the tower
+  const gGeo = new THREE.PlaneGeometry(900, 900, 70, 70);
+  gGeo.rotateX(-Math.PI / 2);
+  const gp = gGeo.attributes.position;
+  for (let i = 0; i < gp.count; i++) {
+    const x = gp.getX(i), z = gp.getZ(i);
+    const amp = Math.min(1, Math.max(0, (Math.hypot(x, z) - 14) / 25));
+    gp.setY(i, (Math.sin(x * 0.05) * 2.2 + Math.cos(z * 0.06) * 2.6 + Math.sin((x + z) * 0.13) * 1.4) * amp);
+  }
+  gGeo.computeVertexNormals();
+  scene.add(new THREE.Mesh(gGeo, texMat('cobbles', 160, 160, 0xa8bc84, 0x607f40)));   // mossy tinted cobbles
+
+  // the Spire
+  const pillar = new THREE.Group(); scene.add(pillar);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(PR, PR, 1, 8, 1, true),
+    texMat('stone_blocks', 8, 1, 0xd8cbb0, 0xc2b48f));    // repeat.y follows the height as it rises (see the scale.y update)
+  shaft.position.y = 0.5; shaft.visible = false; pillar.add(shaft);
+  const bandMat = texMat('stone_arches', 8, 0.4, 0x9a8a70, 0x6e5a40);
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffa040 });     // lit windows glow in the dusk
+  const winGeo = new THREE.BoxGeometry(1.6, 3, 0.5);
+  const bands = [];
+  for (let y = 24; y < PMAX; y += 24) {
+    const g = new THREE.Group(); g.position.y = y; g.userData.y = y;
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(PR + 0.3, PR + 0.3, 1.6, 8), bandMat));
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2;
+      const w = new THREE.Mesh(winGeo, winMat);
+      w.position.set(Math.cos(a) * (PR + 0.35), 0, Math.sin(a) * (PR + 0.35));
+      w.rotation.y = -a;
+      g.add(w);
+    }
+    pillar.add(g); bands.push(g);
+  }
+  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0, PR * 1.2, 44, 8),
+    texMat('rust', 4, 6, 0xb08060, 0x8a6a3a));
+  spire.visible = false; scene.add(spire);
+
+  // entrance door on the +z face
+  const door = new THREE.Group(); door.position.set(0, 0, PR); scene.add(door);
+  for (const l of torches) door.add(l, l.userData.flame);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(5.4, 8.4, 0.3), texMat('stone_blocks', 1.4, 2, 0xb0a080, 0xc9a227));
+  frame.position.set(0, 4.2, 0.1); door.add(frame);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(4.2, 7.5, 0.5), texMat('wood_door', 1, 1, 0xffffff, 0x3a2412));
+  panel.position.set(0, 3.75, 0.45); door.add(panel);
+  const step = new THREE.Mesh(new THREE.BoxGeometry(9, 0.8, 4), texMat('flagstone', 2.5, 1, 0xc0b8a8, 0x9a9080));
+  step.position.set(0, 0.4, 2.5); door.add(step);
+
+  // clouds
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  for (let i = 0; i < 14; i++) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(rnd(20, 40), rnd(6, 10), rnd(14, 26)), cloudMat);
+      b.position.set(rnd(-14, 14), rnd(-3, 3), rnd(-10, 10));
+      g.add(b);
+    }
+    g.position.set(rnd(-200, 200), rnd(110, 230), rnd(-200, 200));
+    scene.add(g);
+  }
+
+  // rubble pool
+  const debGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+  const debMat = texMat('stone_blocks', 0.5, 0.5, 0xc8b898, 0xb3a27f);
+  const debris = [];
+  for (let i = 0; i < 140; i++) {
+    const m = new THREE.Mesh(debGeo, debMat); m.visible = false; scene.add(m);
+    debris.push({ m, v: new THREE.Vector3(), spin: new THREE.Vector3(), alive: false });
+  }
+
+  // ---- NPCs: blocky placeholder figures (swap for real models later) ----
+  const cloth = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+  const makeHuman = (clothColor, x, z) => {
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.7), cloth(clothColor)); body.position.y = 2.3; g.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), cloth(0xd9b38c)); head.position.y = 3.6; g.add(head);
+    const legMat = cloth(0x3a3a4a);
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.3, 0.4), legMat); legL.position.set(-0.3, 0.65, 0); g.add(legL);
+    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.3, 0.4), legMat); legR.position.set(0.3, 0.65, 0); g.add(legR);
+    const mkArm = sx => {
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.8, 2.9, 0);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.3, 0.35), cloth(clothColor));
+      arm.position.y = -0.65; pivot.add(arm); g.add(pivot); return pivot;
+    };
+    const armL = mkArm(-1), armR = mkArm(1);
+    scene.add(g);
+    return { g, head, armL, armR };
+  };
+  const npcA = makeHuman(0x7a4a2a, -8, 8);   // talks, then gets flung
+  const npcB = makeHuman(0x2f5a7a, 6, 6);    // listens, then gets flung
+  npcA.vel = new THREE.Vector3(); npcA.landed = false; npcA.launched = false; npcA.spin = 0;
+  npcB.vel = new THREE.Vector3(); npcB.landed = false; npcB.launched = false; npcB.spin = 0;
+
+  // ---- skeletons rising from the dirt ----
+  const boneMat = cloth(0xd8d2bd), ribMat = cloth(0x9a947e), darkMat = cloth(0x1a1a1a);
+  const makeSkeleton = (x, z, startT) => {
+    const g = new THREE.Group();
+    g.position.set(x, -4, z); g.scale.setScalar(1.3);
+    const part = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); g.add(m); };
+    part(new THREE.BoxGeometry(0.7, 0.7, 0.7), boneMat, 0, 4.2, 0);
+    part(new THREE.BoxGeometry(0.16, 0.16, 0.05), darkMat, -0.17, 4.25, 0.37);
+    part(new THREE.BoxGeometry(0.16, 0.16, 0.05), darkMat, 0.17, 4.25, 0.37);
+    part(new THREE.BoxGeometry(1.0, 1.4, 0.5), ribMat, 0, 2.9, 0);
+    part(new THREE.BoxGeometry(0.8, 0.5, 0.4), boneMat, 0, 1.9, 0);
+    part(new THREE.BoxGeometry(0.22, 1.5, 0.22), boneMat, -0.25, 0.75, 0);
+    part(new THREE.BoxGeometry(0.22, 1.5, 0.22), boneMat, 0.25, 0.75, 0);
+    part(new THREE.BoxGeometry(0.2, 1.4, 0.2), boneMat, -0.7, 2.9, 0);
+    part(new THREE.BoxGeometry(0.2, 1.4, 0.2), boneMat, 0.7, 2.9, 0);
+    scene.add(g);
+    return { g, x, z, startT, dirt: false };
+  };
+  const skeletons = [makeSkeleton(-22, 16, 6.0), makeSkeleton(-13, 24, 6.5), makeSkeleton(14, 22, 7.0),
+    makeSkeleton(24, 10, 7.4), makeSkeleton(-3, 30, 7.9)];
+
+  // ---- a bird wheeling through the clouds ----
+  const birdMat = cloth(0x1d1a18);
+  const bird = new THREE.Group(); bird.scale.setScalar(1.6); bird.rotation.y = Math.PI / 2; scene.add(bird);
+  bird.add(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 1.6), birdMat));
+  const wingL = new THREE.Group(), wingR = new THREE.Group();
+  const wlMesh = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 1.0), birdMat); wlMesh.position.x = -1.6; wingL.add(wlMesh);
+  const wrMesh = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 1.0), birdMat); wrMesh.position.x = 1.6; wingR.add(wrMesh);
+  bird.add(wingL); bird.add(wingR);
+
+  // ---- lightning: one jagged bolt line, reshaped for each strike ----
+  const bolt = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xe8eeff }));
+  bolt.visible = false; scene.add(bolt);
+
+  intro = { renderer, scene, cam, t: 0, shaft, bands, spire, debris, nextDebris: 0, door,
+    ambient, sun, torches, npcA, npcB, skeletons, bird, wingL, wingR, bolt,
+    strikes: [9.6, 12.4, 13.1], strikeIdx: 0, boltT: 0, flashT: 0,
+    SKY_COL: new THREE.Color(SKY), DARK_COL: new THREE.Color(0x202233), FLASH_COL: new THREE.Color(0xdfe7ff) };
+  return intro;
+}
+
+function spawnDebris(ox = 0, oz = 0) {
+  const I = intro;
+  const d = I.debris[I.nextDebris++ % I.debris.length];
+  const a = rnd(0, Math.PI * 2), r = rnd(0, PR * 0.9);
+  d.m.position.set(Math.cos(a) * r + ox, 1, Math.sin(a) * r + oz);
+  d.v.set(rnd(-14, 14), rnd(18, 38), rnd(-14, 14));
+  d.spin.set(rnd(-8, 8), rnd(-8, 8), rnd(-8, 8));
+  d.m.visible = true; d.alive = true;
+}
+function sampleCam(t, CAM = INTRO_CAM) {
+  let i = 0;
+  while (i < CAM.length - 2 && t > CAM[i + 1].t) i++;
+  const a = CAM[i], b = CAM[i + 1];
+  let u = Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t)));
+  u = u * u * (3 - 2 * u);
+  return { p: a.p.map((v, k) => v + (b.p[k] - v) * u), l: a.l.map((v, k) => v + (b.l[k] - v) * u) };
+}
+let capIdx = 0;
+function stepIntro(dt) {
+  const I = intro, t = (I.t += dt);
+  let h = 0;
+  if (t > 2.5) h = (1 - Math.pow(1 - Math.min(1, (t - 2.5) / 2.2), 3)) * 60 + Math.max(0, t - 4.7) * 42;
+  h = Math.min(h, PMAX);
+  // the whole tower (door included) starts 10 units underground and rises out of the dirt
+  const rise = Math.min(1, Math.max(0, (t - 2.5) / 2.2));
+  const base = -10 * Math.pow(1 - rise, 3);
+  I.door.position.y = base;
+  I.shaft.visible = h - base > 0.1;
+  I.shaft.position.y = (h + base) / 2;
+  I.shaft.scale.y = Math.max(h - base, 0.01);
+  if (I.shaft.material.map) I.shaft.material.map.repeat.y = I.shaft.scale.y / 4.7;   // keep the blocks square as it grows
+  for (const b of I.bands) { b.position.y = base + b.userData.y; b.visible = base + b.userData.y < h; }
+  I.spire.visible = h > 1;
+  I.spire.position.set(0, h + 22, 0);
+
+  if (t > 2.5 && t < 4.6) for (let k = 0; k < 3; k++) spawnDebris();
+  for (const d of I.debris) {
+    if (!d.alive) continue;
+    d.v.y -= 38 * dt;
+    d.m.position.addScaledVector(d.v, dt);
+    d.m.rotation.x += d.spin.x * dt; d.m.rotation.z += d.spin.z * dt;
+    if (d.m.position.y < 0.6) {
+      d.m.position.y = 0.6; d.v.y *= -0.35; d.v.x *= 0.6; d.v.z *= 0.6;
+      if (Math.abs(d.v.y) < 1.5) { d.v.set(0, 0, 0); d.alive = false; d.m.rotation.set(rnd(0, 6), rnd(0, 6), 0); }
+    }
+  }
+
+  const easeOutN = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+
+  // the two NPCs: talking at the door, then the eruption flings them away
+  const A = I.npcA, B = I.npcB;
+  const LAUNCH = 2.6;
+  if (t < LAUNCH) {
+    A.armR.rotation.x = -0.9 + Math.sin(t * 5) * 0.4;     // A gestures while talking
+    A.head.rotation.y = Math.sin(t * 1.3) * 0.2;
+    B.head.rotation.y = Math.sin(t * 2.1) * 0.25;         // B listens and shakes its head
+    A.g.position.y = 0.05 * Math.max(0, Math.sin(t * 5));
+  }
+  // both throw their arms up as the ground breaks
+  const raise = t > 2.0 ? (t < 3.0 ? easeOutN((t - 2.0) / 0.25) : 1 - easeOutN((t - 3.0) / 0.5)) : 0;
+  A.armL.rotation.x = -2.6 * raise;
+  A.armR.rotation.x = -2.6 * raise;
+  B.armL.rotation.x = -2.6 * raise;
+  B.armR.rotation.x = -2.6 * raise;
+
+  for (const N of [A, B]) {
+    if (t < LAUNCH || N.landed) continue;
+    if (!N.launched) {
+      N.launched = true;
+      const ox = N.g.position.x, oz = N.g.position.z, dd = Math.hypot(ox, oz) || 1;
+      N.vel.set(ox / dd * 16 + rnd(-2, 2), 22, oz / dd * 16);   // thrown outward from the tower
+      N.spin = rnd(4, 7) * (Math.random() < 0.5 ? -1 : 1);
+    }
+    N.vel.y -= 32 * dt;
+    N.g.position.addScaledVector(N.vel, dt);
+    N.g.rotation.z += N.spin * dt;
+    if (N.g.position.y <= 0 && N.vel.y < 0) {
+      N.landed = true; N.vel.set(0, 0, 0);
+      N.g.position.y = 0.4;
+      N.g.rotation.z = N.spin > 0 ? Math.PI / 2 : -Math.PI / 2;   // lies where it fell
+    }
+  }
+
+  // skeletons burst out of the ground
+  for (const s of I.skeletons) {
+    if (t >= s.startT && !s.dirt) { s.dirt = true; for (let k = 0; k < 8; k++) spawnDebris(s.x, s.z); }
+    s.g.position.y = -4 + 4 * easeOutN((t - s.startT) / 1.4);
+  }
+
+  // bird gliding past with a steady flap
+  I.bird.position.set(-100 + t * 12, 62 + Math.sin(t * 0.7) * 2, -8);
+  const flap = Math.sin(t * 9) * 0.6;
+  I.wingL.rotation.z = flap;
+  I.wingR.rotation.z = -flap;
+
+  // lightning strikes behind the spire
+  while (I.strikeIdx < I.strikes.length && t >= I.strikes[I.strikeIdx]) {
+    I.strikeIdx++;
+    const pts = [];
+    let x = rnd(-40, 40), z = rnd(-70, -30);
+    for (let k = 0; k <= 14; k++) { pts.push(x, 190 - k * 13.5, z); x += rnd(-6, 6); z += rnd(-4, 4); }
+    I.bolt.geometry.dispose();
+    I.bolt.geometry = new THREE.BufferGeometry();
+    I.bolt.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    I.bolt.visible = true; I.boltT = 0.14; I.flashT = 0.12;
+  }
+  I.boltT -= dt; if (I.boltT <= 0) I.bolt.visible = false;
+  I.flashT -= dt;
+
+  // the sky darkens over time; lightning briefly floods it
+  const dk = Math.min(1, Math.max(0, (t - 5) / 7));
+  I.ambient.intensity = 0.6 - 0.4 * dk + (I.flashT > 0 ? 1.2 : 0);
+  I.sun.intensity = 1.0 - 0.75 * dk;                                   // the sunset fades under the storm
+  for (const l of I.torches) {                                         // torches flicker and matter more as it darkens
+    const f = 0.8 + 0.2 * Math.sin(t * 23 + l.position.x) + rnd(-0.12, 0.12);
+    l.intensity = (2.0 + 1.6 * dk) * f; l.userData.flame.scale.y = 0.7 + 0.5 * f;
+  }
+  const skyNow = I.flashT > 0 ? I.FLASH_COL : I.SKY_COL.clone().lerp(I.DARK_COL, dk);
+  I.scene.background.copy(skyNow);
+  I.scene.fog.color.copy(skyNow);
+
+  const c = sampleCam(t);
+  // the ground shakes just before the eruption
+  const shake = t > 2.0 && t < 3.0 ? (3.0 - t) * 0.6 : 0;
+  I.cam.position.set(c.p[0] + rnd(-shake, shake), c.p[1] + rnd(-shake, shake), c.p[2] + rnd(-shake, shake));
+  I.cam.lookAt(c.l[0], c.l[1], c.l[2]);
+
+  while (capIdx < CAPS.length && t >= CAPS[capIdx][0]) { capEl.textContent = CAPS[capIdx][1]; capIdx++; }
+  flashEl.style.opacity = Math.min(1, Math.max(0, (t - 15.2) / 0.8));
+  I.renderer.render(I.scene, I.cam);
+  if (t >= 16) endIntro();
+}
+function startIntro() {
+  overlay.style.display = 'none';
+  if (typeof THREE === 'undefined') { resetGame(); return; }
+  if (!intro) buildIntro();
+  intro.t = 0; capIdx = 0;
+  introActive = true; introStartedAt = performance.now(); document.body.classList.add('intro');
+  canvas.style.visibility = 'hidden';
+  introCanvas.classList.add('on');
+  capEl.style.display = 'block'; capEl.textContent = '';
+  flashEl.style.transition = 'none'; flashEl.style.opacity = 0;
+}
+function endIntro() {
+  if (!introActive) return;
+  introActive = false; document.body.classList.remove('intro');
+  introCanvas.classList.remove('on');
+  capEl.style.display = 'none';
+  canvas.style.visibility = 'visible';
+  flashEl.style.transition = 'opacity .7s';
+  flashEl.style.opacity = 1;
+  setTimeout(() => { flashEl.style.opacity = 0; }, 60);
+  resetGame();
+}
+
+// ---------- ending cinematic (Three.js, same low-res look as the intro) ----------
+// The Spire's tip has broken through the ground of the other world. Out of the last door (first person), a look up
+// at the two moons, then a wide shot from behind the tip with SPIRE CONQUERED and the credit roll.
+const END_LEN = 32, TR = 9, DOOR_Z = TR * 0.924, HERO_Z = DOOR_Z + 16;
+const END_CAM = [
+  { t: 0,    p: [0, 2.4, -7],            l: [0, 2.5, 40] },      // the dark passage behind the Titan's hall
+  { t: 4.2,  p: [0, 2.4, DOOR_Z - 0.5],  l: [0, 2.8, 60] },      // the threshold
+  { t: 6.2,  p: [0, 2.4, DOOR_Z + 8],    l: [0, 4, 80] },        // out onto the dust
+  { t: 10,   p: [0, 2.5, HERO_Z],        l: [-3, 24, 80] },      // head back: the moons
+  { t: 10.01, p: [-7, 3.4, DOOR_Z + 2],  l: [0, 7, 70] },        // cut: over the shoulder
+  { t: 16,   p: [-36, 20, -26],          l: [0, 13, 60] },       // pull back behind the Spire's tip
+  { t: 32,   p: [-48, 28, -40],          l: [0, 16, 60] }
+];
+const END_CAPS = [[0.4, 'The Spire Titan is dead.'], [2.4, 'One last door.'], [4.6, ''], [6.4, 'Red dust. Thin air. Two moons.'],
+  [10.4, 'A hundred floors below, the crypt is quiet.'], [13.2, 'You climbed out of one world... and into another.'], [16, '']];
+const END_CREDITS = k => `The climb is over<br>100 floors · ${k} slain
+  <b>Creatures, weapons and sound</b>Freedoom · Blasphemer
+  <b>Fist</b>Ragnar Random · OpenGameArt
+  <b>3D scenes</b>three.js
+  <b>The Spire</b>10 zones · 27 kinds of horror · 1 survivor
+  <br><br>Thanks for playing<br><br>`;
+let ending = null, endStartedAt = 0;
+const canSkipEnding = () => endActive && performance.now() - endStartedAt > 2500;   // long guard: fire is usually still held when the Titan drops
+
+function buildEnding() {
+  const renderer = getRenderer3();
+  const scene = new THREE.Scene();
+  let seed = 11; const rr = (a, b) => a + ((seed = (seed * 16807) % 2147483647) / 2147483647) * (b - a);   // fixed layout every time
+  const tex = (name, rx, ry) => {
+    if (typeof TILES === 'undefined' || !TILES[name]) return null;
+    const tx = new THREE.TextureLoader().load(TILES[name]);
+    tx.magFilter = tx.minFilter = THREE.NearestFilter; tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(rx, ry);
+    return tx;
+  };
+  const lit = (name, rx, ry, col, fb) => { const map = tex(name, rx, ry); return new THREE.MeshLambertMaterial(map ? { map, color: col } : { color: fb, flatShading: true }); };
+  const flat = (name, rx, ry, col, fb, side) => { const map = tex(name, rx, ry); return new THREE.MeshBasicMaterial(map ? { map, color: col, side } : { color: fb, side }); };
+  const HAZE = 0xc8683c;
+  scene.fog = new THREE.Fog(HAZE, 90, 620);
+  const cam = new THREE.PerspectiveCamera(55, 320 / 180, 0.3, 2400);
+  scene.add(new THREE.AmbientLight(0xff9a88, 0.5));
+  scene.add(new THREE.HemisphereLight(0xff8060, 0x401810, 0.35));
+  const sun = new THREE.DirectionalLight(0xffd0a0, 1.0); sun.position.set(90, 50, 120); scene.add(sun);   // low sun ahead-right: the tip is a silhouette in the wide shot
+
+  // sky dome: maroon zenith down to a dusty orange horizon, with stars
+  const sc = mk(512, 256), g = sc.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  [[0, '#12030c'], [0.22, '#3a0a14'], [0.4, '#8a2a20'], [0.5, '#c8683c'], [1, '#c8683c']].forEach(([o, c]) => gr.addColorStop(o, c));
+  g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 420; i++) { const y = rr(0, 100); g.fillStyle = `rgba(255,240,225,${rr(0.3, 1) * (1 - y / 110)})`; g.fillRect(rr(0, 512) | 0, y | 0, 1, 1); }
+  const skyTx = new THREE.CanvasTexture(sc); skyTx.magFilter = THREE.NearestFilter;
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(2000, 24, 16), new THREE.MeshBasicMaterial({ map: skyTx, side: THREE.BackSide, fog: false, depthWrite: false }));
+  scene.add(sky);
+  // two moons (lit by the sun, so they show a phase) and a ringed giant low on the horizon
+  const body = (r, col, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), new THREE.MeshLambertMaterial({ color: col, emissive: new THREE.Color(col).multiplyScalar(0.45), fog: false })); m.position.set(x, y, z); scene.add(m); return m; };
+  const moonA = body(120, 0xf2dcc0, 60, 520, 1500), moonB = body(42, 0xc0dcf8, -330, 360, 1500);
+  const giant = body(330, 0xd09060, -980, 150, 1400);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(430, 620, 28), new THREE.MeshBasicMaterial({ color: 0xf0c890, side: THREE.DoubleSide, fog: false, transparent: true, opacity: 0.55 }));
+  ring.position.copy(giant.position); ring.rotation.set(1.35, 0.25, 0); scene.add(ring);
+
+  // red dunes, flat round the Spire
+  const gGeo = new THREE.PlaneGeometry(1600, 1600, 80, 80); gGeo.rotateX(-Math.PI / 2);
+  const gp = gGeo.attributes.position;
+  for (let i = 0; i < gp.count; i++) {
+    const x = gp.getX(i), z = gp.getZ(i), d = Math.hypot(x, z), k = Math.min(1, Math.max(0, (d - 45) / 120));
+    gp.setY(i, k * (Math.sin(x * 0.021 + 1) * 9 + Math.cos(z * 0.017) * 11 + Math.sin((x + z) * 0.05) * 3 + rr(-1, 1)));
+  }
+  gGeo.computeVertexNormals();
+  const groundM = lit('red_ground', 130, 130, 0xffc8b0, 0x8a3a22); groundM.emissive = new THREE.Color(0x3a140c);
+  if (groundM.map) groundM.map.minFilter = THREE.NearestMipmapLinearFilter;   // far dunes would sparkle without mipmaps
+  scene.add(new THREE.Mesh(gGeo, groundM));
+  // rock needles
+  const rockMat = lit('red_rock', 2, 3, 0xd8b0a0, 0x7a2a1a);
+  for (let i = 0; i < 46; i++) {
+    const a = rr(0, 6.283), d = rr(50, 520), x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (Math.abs(x) < 26 && z > 0 && z < 220) continue;                 // keep the walk out of the door clear
+    const h = rr(8, 40) * (0.6 + d / 400), m = new THREE.Mesh(new THREE.CylinderGeometry(rr(0, 1), rr(2.5, 7), h, 5), rockMat);
+    m.position.set(x, h / 2 - 3, z); m.rotation.set(rr(-0.15, 0.15), rr(0, 3), rr(-0.15, 0.15)); scene.add(m);
+  }
+
+  // the Spire's tip: an 8-sided drum turned so one flat face (the door) looks down +z, a crown and a point
+  const tip = new THREE.Group(); tip.rotation.y = Math.PI / 8; scene.add(tip);
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(TR, TR * 1.08, 16, 8, 1, true), lit('red_relief', 8, 2.5, 0xc8a898, 0x6a2a20)); drum.position.y = 8; tip.add(drum);
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(TR + 1.2, TR + 0.4, 2, 8), lit('red_rock', 8, 0.5, 0x9a7a70, 0x4a1a14)); crown.position.y = 16.6; tip.add(crown);
+  const point = new THREE.Mesh(new THREE.CylinderGeometry(0, TR * 1.05, 26, 8), lit('red_rock', 6, 4, 0xb89080, 0x5a2018)); point.position.y = 30.5; tip.add(point);
+  // rubble thrown up where it broke through
+  for (let i = 0; i < 26; i++) {
+    const a = rr(0, 6.283), d = TR + rr(0.5, 7), sz = rr(0.6, 2.6), x = Math.sin(a) * d, z = Math.cos(a) * d;
+    if (Math.abs(x) < 3.6 && z > 0) continue;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz * rr(0.5, 1), sz), rockMat); m.position.set(x, sz * 0.2, z); m.rotation.set(rr(0, 3), rr(0, 3), rr(0, 3)); scene.add(m);
+  }
+  // the passage out: a box seen from inside, its far end open on the doorway
+  const wallM = flat('red_rock', 5, 2, 0x5a3a36, 0x2a1210, THREE.BackSide), floorM = flat('red_ground', 2, 8, 0x5a4038, 0x2a1210, THREE.BackSide);
+  const none = new THREE.MeshBasicMaterial({ visible: false });
+  const PL = DOOR_Z + 10;
+  const pass = new THREE.Mesh(new THREE.BoxGeometry(4.2, 6.6, PL), [wallM, wallM, flat('red_rock', 1.5, 5, 0x3a2422, 0x1a0a08, THREE.BackSide), floorM, none, flat('red_relief', 1, 1.5, 0x4a302c, 0x1a0a08, THREE.BackSide)]);
+  pass.position.set(0, 3.3, DOOR_Z - PL / 2); scene.add(pass);
+  // door frame and the two leaves thrown open
+  const frameM = lit('red_rock', 1, 2, 0x8a6a60, 0x3a1612), leafM = lit('iron_door', 0.5, 1, 0xd0c0b8, 0x30282a);
+  for (const sx of [-1, 1]) {
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.9, 7.6, 0.9), frameM); jamb.position.set(sx * 2.55, 3.8, DOOR_Z + 0.2); scene.add(jamb);
+    const hinge = new THREE.Group(); hinge.position.set(sx * 2.1, 0, DOOR_Z + 0.6); hinge.rotation.y = sx * 1.9; scene.add(hinge);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(2.1, 6.6, 0.25), leafM); leaf.position.set(-sx * 1.05, 3.3, 0); hinge.add(leaf);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(6.0, 1.0, 0.9), frameM); lintel.position.set(0, 7.1, DOOR_Z + 0.2); scene.add(lintel);
+
+  // the climber (only in the wide shot)
+  const cloth = c => new THREE.MeshLambertMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.4), flatShading: true });
+  const hero = new THREE.Group(); hero.position.set(0, 0, HERO_Z);  scene.add(hero);
+  const part = (w, h, d, c, x, y, z, to) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), cloth(c)); m.position.set(x, y, z); (to || hero).add(m); return m; };
+  part(1.2, 1.8, 0.7, 0x7a8a9a, 0, 2.3, 0); part(0.9, 0.9, 0.9, 0xc8a080, 0, 3.6, 0); part(0.95, 0.35, 0.95, 0x2a2018, 0, 4.0, 0);
+  part(0.42, 1.4, 0.42, 0x2a2630, -0.3, 0.7, 0); part(0.42, 1.4, 0.42, 0x2a2630, 0.3, 0.7, 0);
+  part(0.35, 1.4, 0.35, 0x7a8a9a, -0.8, 2.4, 0);
+  const armR = new THREE.Group(); armR.position.set(0.8, 3.0, 0); hero.add(armR);
+  part(0.35, 1.3, 0.35, 0x7a8a9a, 0, -0.6, 0, armR); part(0.4, 0.4, 0.4, 0xc8a080, 0, -1.35, 0, armR);
+
+  // dust on the wind
+  const dustGeo = new THREE.BufferGeometry(), dn = 140, dp = new Float32Array(dn * 3);
+  for (let i = 0; i < dn; i++) { dp[i * 3] = rr(-90, 90); dp[i * 3 + 1] = rr(0.3, 26); dp[i * 3 + 2] = rr(-60, 140); }
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dp, 3));
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffc8a0, size: 1.5, sizeAttenuation: false, transparent: true, opacity: 0.7 }));
+  scene.add(dust);
+
+  ending = { renderer, scene, cam, t: 0, hero, armR, dust, moonA, moonB, sky, capIdx: 0 };
+  return ending;
+}
+function startEnding() {
+  setMusic('win');
+  if (!ending) buildEnding();
+  const E = ending; E.t = 0; E.capIdx = 0;
+  running = false; endActive = true; endStartedAt = performance.now(); document.body.classList.add('intro');
+  overlay.style.display = 'none'; canvas.style.visibility = 'hidden'; introCanvas.classList.add('on');
+  capEl.style.display = 'block'; capEl.textContent = '';
+  $('endin').innerHTML = END_CREDITS(kills);
+  $('endtitle').style.display = $('endroll').style.display = 'block'; $('endtitle').style.opacity = 0;
+  flashEl.style.transition = 'none'; flashEl.style.opacity = 1;      // fade in from the white of the Titan's death
+  stepEnding(0);
+}
+function stepEnding(dt) {
+  const E = ending, t = (E.t += dt);
+  const c = sampleCam(t, END_CAM), bob = t < 9 ? Math.abs(Math.sin(t * 4.2)) * 0.09 * Math.min(1, (9 - t) / 2) : 0;   // footsteps while walking
+  E.cam.position.set(c.p[0], c.p[1] + bob, c.p[2]);
+  E.cam.lookAt(c.l[0], c.l[1], c.l[2]);
+  E.sky.position.copy(E.cam.position);
+  E.hero.visible = t > 10;
+  E.armR.rotation.x = -2.9 * Math.min(1, Math.max(0, (t - 13.4) / 0.6));           // fist in the air
+  const dp = E.dust.geometry.attributes.position;
+  for (let i = 0; i < dp.count; i++) { let x = dp.getX(i) + dt * (5 + (i % 5)); if (x > 90) x -= 180; dp.setX(i, x); }
+  dp.needsUpdate = true;
+  while (E.capIdx < END_CAPS.length && t >= END_CAPS[E.capIdx][0]) capEl.textContent = END_CAPS[E.capIdx++][1];
+  // white: in from the kill, a glare crossing the threshold, out to the menu
+  const glare = Math.max(0, 1 - Math.abs(t - 4.5) / 0.7) * 0.85;
+  flashEl.style.opacity = Math.max(1 - t / 1.2, glare, (t - (END_LEN - 1)) / 1);
+  $('endtitle').style.opacity = t > 15.5 ? 1 : 0;
+  const roll = $('endroll'), inner = $('endin'), u = Math.min(1, Math.max(0, (t - 17) / (END_LEN - 18)));
+  inner.style.transform = `translateY(${roll.clientHeight - u * (roll.clientHeight + inner.offsetHeight)}px)`;
+  E.renderer.render(E.scene, E.cam);
+  if (t >= END_LEN) finishEnding();
+}
+function finishEnding() {
+  if (!endActive) return;
+  endActive = false; document.body.classList.remove('intro');
+  introCanvas.classList.remove('on'); capEl.style.display = 'none';
+  $('endtitle').style.display = $('endroll').style.display = 'none';
+  canvas.style.visibility = 'visible';
+  flashEl.style.transition = 'opacity .7s'; flashEl.style.opacity = 0;
+  victoryMenu();
+}
+
+// ---------- flow & input ----------
+// ---- controllers (the browser Gamepad API, standard layout): left stick moves, right stick turns, RT or A fires,
+// RB / LB next / previous weapon, Y map, Start pauses or confirms a menu, B backs out of a panel. Polled every frame. ----
+// ---- menu navigation: every menu and panel works from the keyboard and from a controller, no pointer needed ----
+// One item is selected (class .sel). Up / down move, left / right change a slider or a toggle, confirm presses it,
+// back closes a panel or resumes from pause. Credits and records scroll with up / down.
+let menuI = 0, menuBackI = 0;
+const menuCtx = () => ['optpanel', 'keypanel', 'recpanel', 'credits'].find(id => $(id).classList.contains('on')) || 'menu';
+function menuItems() {
+  const c = menuCtx();
+  if (c === 'optpanel') return ['optvol', 'optmus', 'optdiff', 'optfov', 'optpal', 'optsens', 'optfull', 'optclose'].map($);
+  if (c === 'keypanel') return [...$('keytable').querySelectorAll('button'), $('keyreset'), $('keyclose')];
+  if (c === 'recpanel') return [$('recclose')];
+  if (c === 'credits') return [$('creditsclose')];
+  return [...$('menu').querySelectorAll('button')].filter(el => el.style.display !== 'none');
+}
+function menuPaint() {
+  document.querySelectorAll('.sel').forEach(el => el.classList.remove('sel'));
+  if (overlay.style.display === 'none') return;
+  const it = menuItems(); menuI = Math.max(0, Math.min(it.length - 1, menuI));
+  if (it[menuI]) { it[menuI].classList.add('sel'); if (menuCtx() !== 'credits' && menuCtx() !== 'recpanel') it[menuI].scrollIntoView({ block: 'nearest' }); }
+}
+function menuNav(d) {
+  const c = menuCtx();
+  if (c === 'credits' || c === 'recpanel') { $(c).scrollTop += d * 48; return; }
+  const n = menuItems().length; menuI = (menuI + d + n) % n; sfx('switch', 0.3); menuPaint();
+}
+function menuAdjust(d) {
+  const el = menuItems()[menuI]; if (!el) return;
+  if (el.type === 'range') { el.value = +el.value + d * (+el.step || 1) * (el.id === 'optfov' ? 3 : 1); el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
+  else if (el.id === 'optdiff' || el.id === 'optpal' || el.id === 'optfull') el.click();
+}
+function menuActivate() {
+  const el = menuItems()[menuI]; if (!el || el.type === 'range') return;
+  if (el.id === 'go' && performance.now() - menuShownAt < (paused ? 250 : 900)) return;   // so a held fire button does not skip a menu
+  el.click(); menuPaint();
+}
+function menuBack() {
+  const c = menuCtx();
+  if (c === 'optpanel') showOpts(false);
+  else if (c === 'keypanel') { if (keyWait) { keyWait = null; drawKeys(); } else showKeys(false); }
+  else if (c === 'recpanel') showRecords(false);
+  else if (c === 'credits') showCredits(false);
+  else if (paused && performance.now() - menuShownAt > 250) resumeGame();
+  menuPaint();
+}
+const gp = { mx: 0, my: 0, look: 0, fire: false, was: {}, seen: false, navT: 0 };
+function pollGamepad() {
+  let pad = null;
+  try { for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) if (g && g.connected) { pad = g; break; } } catch (e) {}
+  if (!pad) { gp.mx = gp.my = gp.look = 0; gp.fire = false; return; }
+  if (!gp.seen) { gp.seen = true; drawHelp(); }
+  const ax = i => Math.abs(pad.axes[i] || 0) > 0.15 ? pad.axes[i] : 0, dn = i => !!(pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5));
+  gp.mx = ax(0); gp.my = ax(1); gp.look = ax(2); gp.fire = dn(7) || dn(0);
+  const hit = i => { const d = dn(i), h = d && !gp.was[i]; gp.was[i] = d; return h; };
+  const start = hit(9), a = hit(0), b = hit(1), rb = hit(5), lb = hit(4), y = hit(3);
+  if (start || a || b || rb) { audioInit(); musicUnlock(); }
+  if (introActive) { if ((start || a) && canSkipIntro()) endIntro(); return; }
+  if (endActive) { if ((start || a) && canSkipEnding()) finishEnding(); return; }
+  if (running) {
+    if (start) pauseGame();
+    if (rb) cycleWeapon(1);
+    if (lb) cycleWeapon(-1);
+    if (y) cycleMap();
+  } else if (overlay.style.display !== 'none') {             // a menu or a panel: d-pad or left stick, A, B, Start
+    const up = dn(12) || gp.my < -0.5, down = dn(13) || gp.my > 0.5, left = dn(14) || gp.mx < -0.5, right = dn(15) || gp.mx > 0.5;
+    const dir = up ? 'u' : down ? 'd' : left ? 'l' : right ? 'r' : '';
+    const now = performance.now(), scrolling = menuCtx() === 'credits' || menuCtx() === 'recpanel';
+    if (dir && (dir !== gp.navDir || now > gp.navT)) {       // first press at once, then repeat while held
+      gp.navT = now + (scrolling ? 60 : dir === gp.navDir ? 130 : 320); gp.navDir = dir;
+      if (dir === 'u') menuNav(-1); else if (dir === 'd') menuNav(1); else menuAdjust(dir === 'l' ? -1 : 1);
+    }
+    if (!dir) gp.navDir = '';
+    if (keyWait) { if (b) menuBack(); return; }
+    if (a) menuActivate();
+    if (b) menuBack();
+    if (start) { if (menuCtx() !== 'menu') menuBack(); else if (performance.now() - menuShownAt > (paused ? 250 : 900)) $('go').click(); }
+  }
+}
+function resetGame() {
+  level = 0; kills = 0; runT = 0; zoneStat = { t: 0, kills0: 0, hurt: 0, secrets: 0, secretsAll: 0 };
+  P = newPlayer();
+  generateEntrance();
+  running = true;
+  overlay.style.display = 'none';
+  showMsg('Step through the door.');
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+}
+
+const PREVENT = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+const WEAPON_KEYS = { Digit0: 'fist' }; WEAPON_ORDER.slice(0, 9).forEach((w, i) => { WEAPON_KEYS['Digit' + (i + 1)] = w; });   // 1-9 guns, 0 fists
+addEventListener('keydown', e => {
+  if (introActive) { if (['Space', 'Enter', 'Escape'].includes(e.code) && canSkipIntro()) endIntro(); return; }
+  if (endActive) { if (['Space', 'Enter', 'Escape'].includes(e.code) && !e.repeat && canSkipEnding()) finishEnding(); return; }
+  if (!running && overlay.style.display !== 'none') {         // a menu or a panel is up: the keyboard drives it
+    e.preventDefault();
+    if (keyWait) {                                            // controls panel, waiting for the key to bind
+      if (e.code !== 'Escape' && !/^Digit/.test(e.code)) {
+        const other = Object.keys(K).find(a => K[a] === e.code && a !== keyWait);
+        if (other) K[other] = K[keyWait];
+        K[keyWait] = e.code; opts.keys = Object.assign({}, K); saveOpts();
+      }
+      keyWait = null; drawKeys(); return;
+    }
+    const c = e.code;
+    if (c === 'ArrowUp' || c === K.fwd) menuNav(-1);
+    else if (c === 'ArrowDown' || c === K.back) menuNav(1);
+    else if (c === 'ArrowLeft' || c === K.left || c === K.tl) menuAdjust(-1);
+    else if (c === 'ArrowRight' || c === K.right || c === K.tr) menuAdjust(1);
+    else if (e.repeat) return;
+    else if (c === 'Enter' || c === 'Space' || c === K.fire) menuActivate();
+    else if (c === 'Escape' || c === 'Backspace') menuBack();
+    else if (c === K.full) toggleFullscreen();
+    return;
+  }
+  if (PREVENT.has(e.code)) e.preventDefault();
+  if (running && (e.code === 'Escape' || e.code === K.pause) && !e.repeat) { pauseGame(); return; }
+  keys[e.code] = true;
+  if (e.code === K.full && !e.repeat) toggleFullscreen();
+  if (e.code === K.map && !e.repeat) cycleMap();
+  if (e.code === K.next && !e.repeat && running) cycleWeapon();
+  if (WEAPON_KEYS[e.code] && running && P.owned[WEAPON_KEYS[e.code]]) { P.weapon = WEAPON_KEYS[e.code]; showMsg(WEAPONS[P.weapon].name); }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+// tap to skip the intro; ignore the press that started it and presses on the pad (its ✕ skips via the Space key)
+let introStartedAt = 0;
+const canSkipIntro = () => introActive && performance.now() - introStartedAt > 700;
+addEventListener('pointerdown', e => { if (canSkipEnding() && !(e.target.closest && e.target.closest('.rqp-root'))) finishEnding(); });
+addEventListener('pointerdown', e => { if (canSkipIntro() && !(e.target.closest && e.target.closest('.rqp-root'))) endIntro(); });
+addEventListener('mousemove', e => {
+  if (running && document.pointerLockElement === canvas) P.a += e.movementX * 0.0022 * opts.sens;
+});
+canvas.addEventListener('pointerdown', e => { if (running && e.pointerType === 'mouse') fire(); });
+addEventListener('wheel', e => { if (running) cycleWeapon(e.deltaY < 0 ? -1 : 1); }, { passive: true });   // mouse wheel: next weapon
+addEventListener('resize', resize);
+addEventListener('rqpad:layout', resize);
+showMenu('CRYPT CRAWLER', 'One hundred floors. Ten guardians. One way up.', 'START');
+$('go').addEventListener('click', () => {
+  audioInit(); sfx('switch');
+  if (paused) { resumeGame(); return; }
+  if (summary) {
+    summary = false; running = true; overlay.style.display = 'none'; nextLevel(true);
+    try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+    return;
+  }
+  const rs = loadResume(), cp = loadCheckpoint();
+  if (rs && rs.floor > 1) { continueGame(rs, true); return; }   // pick up exactly where you left off
+  if (cp && cp.floor > 1) { continueGame(cp); return; }      // a saved zone checkpoint beats starting over
+  if (!introSeen) { introSeen = true; startIntro(); }
+  else resetGame();
+});
+// settings sliders
+$('optvol').value = Math.round(opts.vol * 100); $('optsens').value = Math.round(opts.sens * 100);
+const saveOpts = () => { try { localStorage.setItem('cc_opts', JSON.stringify(opts)); } catch (e) {} };
+$('optvol').addEventListener('input', e => { opts.vol = sndVolume = e.target.value / 100; if (sndMaster) sndMaster.gain.value = sndVolume; saveOpts(); });
+$('optvol').addEventListener('change', () => { audioInit(); sfx('ewand'); });       // a test shot at the new volume
+$('optsens').addEventListener('input', e => { opts.sens = e.target.value / 100; saveOpts(); });
+// full screen (F by default, or the settings button). Browsers only allow it from a key press or click, and an
+// embedding page can forbid it altogether, in which case nothing happens.
+function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else { const r = document.documentElement.requestFullscreen(); if (r && r.catch) r.catch(() => {}); }
+  } catch (e) {}
+}
+$('optfull').addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); });
+$('optpal').textContent = opts.pal === 'contrast' ? 'high contrast' : 'normal';
+$('optpal').addEventListener('click', e => { e.stopPropagation(); opts.pal = opts.pal === 'contrast' ? 'normal' : 'contrast'; e.target.textContent = opts.pal === 'contrast' ? 'high contrast' : 'normal'; saveOpts(); });
+$('optfov').value = opts.fov;
+$('optfov').addEventListener('input', e => { setFov(+e.target.value); saveOpts(); });
+$('optfov').addEventListener('click', e => e.stopPropagation());
+$('optdiff').textContent = opts.diff;
+$('optdiff').addEventListener('click', e => {
+  e.stopPropagation();
+  opts.diff = { easy: 'normal', normal: 'hard', hard: 'easy' }[opts.diff] || 'normal'; e.target.textContent = opts.diff; saveOpts();
+  if (running || paused) showMsg(`Difficulty ${opts.diff}: from the next floor`);
+});
+$('optmus').value = Math.round(opts.music * 100);
+$('optmus').addEventListener('input', e => { opts.music = e.target.value / 100; setMusic(musicKey || 'title'); saveOpts(); });
+for (const id of ['optvol', 'optsens', 'optmus']) $(id).addEventListener('click', e => e.stopPropagation());
+$('quit').addEventListener('click', e => {
+  e.stopPropagation();
+  showMenu('CRYPT CRAWLER', 'One hundred floors. Ten guardians. One way up.', 'START');
+});
+// the browser takes Esc itself to release the mouse, so losing the lock is how a pause usually arrives
+document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && performance.now() - lockDropT > 600) pauseGame(); });   // not when a menu released it
+document.addEventListener('visibilitychange', () => { if (document.hidden && running) pauseGame(); });
+// controls panel: click an action, press a key. A key already used by another action is swapped with it.
+let keyWait = null;
+function drawHelp() { $('help').textContent = `Keys: ${keyLabel(K.fwd)}${keyLabel(K.left)}${keyLabel(K.back)}${keyLabel(K.right)} move · ${keyLabel(K.tl)}/${keyLabel(K.tr)} or mouse turn · ${keyLabel(K.fire)} or click fires · 1-9 guns, 0 fists, ${keyLabel(K.next)} or wheel next · ${keyLabel(K.map)} map · ${keyLabel(K.full)} full screen · Esc pause  |  Menus: up / down choose · left / right change · Enter confirms · Esc back${gp.seen ? '  |  Controller: sticks move and turn · RT fire · RB/LB weapon · Y map · Start pause · A confirm · B back' : ''}`; }
+function drawKeys() {
+  setTimeout(menuPaint, 0);                                  // the table is rebuilt below: put the selection mark back
+  $('keytable').innerHTML = Object.keys(KEY_NAMES).map(a => `<tr><td>${KEY_NAMES[a]}</td><td><button data-a="${a}" class="${keyWait === a ? 'wait' : ''}">${keyWait === a ? 'press a key' : keyLabel(K[a])}</button></td></tr>`).join('');
+  drawHelp();
+}
+function showKeys(on) { keyWait = null; $('keypanel').classList.toggle('on', on); if (on) { menuBackI = menuI; menuI = 0; } else menuI = menuBackI; drawKeys(); menuPaint(); }
+$('keysbtn').addEventListener('click', e => { e.stopPropagation(); showKeys(true); });
+$('keyclose').addEventListener('click', e => { e.stopPropagation(); showKeys(false); });
+$('keyreset').addEventListener('click', e => { e.stopPropagation(); Object.assign(K, KEY_DEFAULTS); opts.keys = {}; saveOpts(); keyWait = null; drawKeys(); });
+$('keytable').addEventListener('click', e => { e.stopPropagation(); const a = e.target.dataset && e.target.dataset.a; if (a) { keyWait = a; drawKeys(); } });
+$('keypanel').addEventListener('click', e => e.stopPropagation());
+drawHelp();
+function showOpts(on) { $('optpanel').classList.toggle('on', on); if (on) { menuBackI = menuI; menuI = 0; } else menuI = menuBackI; menuPaint(); }
+$('optbtn').addEventListener('click', e => { e.stopPropagation(); showOpts(true); });
+$('optclose').addEventListener('click', e => { e.stopPropagation(); showOpts(false); });
+$('optpanel').addEventListener('click', e => e.stopPropagation());
+// hovering a menu line with the mouse selects it, so mouse and keys never disagree about which line is live
+$('menu').addEventListener('mouseover', e => { const it = menuItems(), k = it.indexOf(e.target); if (menuCtx() === 'menu' && k >= 0 && k !== menuI) { menuI = k; menuPaint(); } });
+function showCredits(on) { $('credits').classList.toggle('on', on); if (on) { $('credits').scrollTop = 0; menuBackI = menuI; menuI = 0; } else menuI = menuBackI; menuPaint(); }
+$('creditsbtn').addEventListener('click', e => { e.stopPropagation(); showCredits(true); });
+$('records').addEventListener('click', e => { e.stopPropagation(); showRecords(true); });
+$('recclose').addEventListener('click', e => { e.stopPropagation(); showRecords(false); });
+$('creditsclose').addEventListener('click', e => { e.stopPropagation(); showCredits(false); });
+$('newclimb').addEventListener('click', e => {               // wipe the checkpoint and start from the crypt
+  e.stopPropagation(); clearCheckpoint(); $('newclimb').style.display = 'none';
+  $('go').textContent = 'START';
+});
+
+// ---------- boot ----------
+P = newPlayer();
+generateEntrance();
+resize();
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000);
+  last = t;
+  pollGamepad();
+  if (introActive) {
+    stepIntro(dt);
+  } else if (endActive) {
+    stepEnding(dt);
+  } else {
+    if (running) update(dt);
+    render();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// Test hook: lets screenshot tooling (tools/shoot.py) run code inside this scope, e.g.
+// window.__cc.eval("P.weapon = 'sword'"). Unused during normal play.
+window.__cc = { eval: src => eval(src) };
+})();
+</script>
+</body>
+</html>

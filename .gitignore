@@ -1,0 +1,15 @@
+# build output (Cloudflare builds this itself)
+dist/
+
+# local junk
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.wrangler/
+
+# private: never publish these (the repo is public)
+content/downloads/
+content/download-password.txt
+.zip-version
+*.zip

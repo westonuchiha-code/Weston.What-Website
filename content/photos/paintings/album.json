@@ -1,0 +1,89 @@
+{
+  "title": "Paintings",
+  "description": "",
+  "sort": "name",
+  "cover": "01-blue-skull-pour.jpg",
+  "captions": {
+    "01-blue-skull-pour.jpg": {
+      "alt": "Abstract acrylic pour painting in a black frame: a skull face made of blue, teal, cream and black paint with two round eye sockets and yellow teeth"
+    },
+    "02-eight-panel-pour.jpg": {
+      "alt": "Eight rectangular acrylic pour panels arranged in a grid, the top four mostly blue, black and teal, the bottom four mostly yellow and black"
+    },
+    "03-skull-w-w.jpg": {
+      "alt": "Painted skull-like head in profile on a black background, outlined in white dots and gold, filled with red, purple and teal splatter, with a white scribble above it and the initials W.W. in the corner"
+    },
+    "04-confetti-splatter.jpg": {
+      "alt": "Abstract watercolor-style splatter in orange, red, magenta, yellow and teal flecks on cream paper"
+    },
+    "05-black-figure-in-red.jpg": {
+      "alt": "A black crayon-like stick figure with an oval head and spiky limbs surrounded by glossy red, orange, yellow and magenta paint"
+    },
+    "06-crayon-skull.jpg": {
+      "alt": "Black crayon drawing of a rounded skull-like head with crossed-out eyes, spikes on top and a grid of teeth on a textured grey background"
+    },
+    "07-crayon-figures.jpg": {
+      "alt": "Black crayon drawing of loose, wobbly figures facing each other with sticks above two large dark mounds"
+    },
+    "08-charcoal-texture.jpg": {
+      "alt": "Heavy black charcoal or crayon texture with a thick vertical line and a lighter patch on the left"
+    },
+    "09-cone-hat.jpg": {
+      "alt": "Ink and watercolor portrait of a person with crossed-out pupils wearing a green and tan striped cone hat against a yellow and orange background"
+    },
+    "10-yellow-spray-face.jpg": {
+      "alt": "Large face in black brush strokes over yellow spray paint on white paper, with crossed-out eyes, drips running down and silver and black splatter"
+    },
+    "11-paint-peel-bust.jpg": {
+      "alt": "Torn pieces of dried paint layered into a bust of a figure, with a blue and yellow head, a dark face and a red body on white paper"
+    },
+    "12-black-white-splatter.jpg": {
+      "alt": "Thick black paint strokes covered in white splatter and large white splashes on white paper"
+    },
+    "13-paint-peel-star-creature.jpg": {
+      "alt": "Dried paint pieces in dark green, blue, yellow and brown arranged into a spiky star-shaped figure on white paper"
+    },
+    "14-paint-peel-figure.jpg": {
+      "alt": "Dried paint pieces in green, yellow, blue and brown arranged into a standing figure with a head, torso, arms and legs"
+    },
+    "15-paint-peel-dark-bust.jpg": {
+      "alt": "Dark purple, black and blue dried paint pieces shaped like a head and neck above a red and black torso on white paper"
+    },
+    "16-paint-peel-owl.jpg": {
+      "alt": "Dried paint pieces in gray, maroon and green shaped like an owl or cat head with pointed ears sitting on a pile of green and yellow pieces"
+    },
+    "17-paint-peel-two-birds.jpg": {
+      "alt": "Dried paint pieces forming a long-beaked bird with white eyes on the left and a red and teal creature with white eyes on the right"
+    },
+    "18-paint-peel-fish.jpg": {
+      "alt": "A single piece of dried teal paint with flecks of yellow, red and blue, shaped like a fish or arrow pointing right"
+    },
+    "19-paint-peel-totem.jpg": {
+      "alt": "Dried paint pieces in rust brown, blue, green and yellow arranged into a totem-like figure with a square head, two fangs and a pink limb"
+    },
+    "20-skull-on-book-index.jpg": {
+      "alt": "Pale gray skull-like head with closed eyes and orange and blue teeth drawn over a book index page, with purple triangles and orange circles below, signed Weston 2022"
+    },
+    "21-podium-on-book-page.jpg": {
+      "alt": "Orange figure in a striped party hat with yellow teeth, standing behind a podium with a star flag and raising a cross-shaped hand, drawn over a page of astronomy text, with a broken arrow and a rocket nearby"
+    },
+    "22-blood-fuels-empires.jpg": {
+      "alt": "Painting of a long-necked head with large heavy-lidded eyes on a background of green, blue, yellow and pink stripes, with the words BLOOD FUELS EMPIRES and X patterns around the border"
+    },
+    "23-split-face.jpg": {
+      "alt": "Tall painting of a face split down the middle, the left half olive green with a green eye and the right half pale pink and brown with a blank eye, on a blue, gray and black background"
+    },
+    "24-yellow-skull-red.jpg": {
+      "alt": "Close-up of a yellow skull-like head with a heavy-lidded eye, stitched teeth and white nostrils against a red background with black and white streaks"
+    },
+    "25-silver-fish-mask-on-blue.jpg": {
+      "alt": "A silver and orange sculpted fish-like face with an open mouth set into a blue and black painting with looping pink-orange paint lines"
+    },
+    "26-watercolor-cat-yellow-swirl.jpg": {
+      "alt": "Watercolor and ink painting of a gray cat curled up with one red crossed eye and one yellow crossed eye, inside a black ring on a yellow and orange swirl"
+    },
+    "27-dripped-mask-on-gray-strokes.jpg": {
+      "alt": "A black and orange foam mask face dripping with white paint, mounted on a painting of crossed gray and black brush strokes with orange splatter"
+    }
+  }
+}

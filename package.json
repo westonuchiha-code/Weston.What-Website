@@ -1,0 +1,16 @@
+{
+  "name": "westonwhat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "westonwhat.com: Weston's Hideout And Terminal. A personal node on the old internet.",
+  "type": "module",
+  "scripts": {
+    "dev": "node engine/serve.mjs --drafts",
+    "build": "node engine/build.mjs",
+    "portable": "node engine/build.mjs --portable",
+    "graphics": "python3 tools/make_graphics.py && python3 tools/skull.py"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
