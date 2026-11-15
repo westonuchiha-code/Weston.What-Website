@@ -159,6 +159,11 @@
     {
       "img": "/img/buttons/b-small-icon.gif",
       "alt": "Computer icon"
+    },
+    {
+      "img": "/img/buttons/b-diz-best-cat.gif",
+      "alt": "D.I.Z., best cat",
+      "href": "/photos/diz/"
     }
   ],
   "photos": {
