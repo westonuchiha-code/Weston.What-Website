@@ -301,8 +301,8 @@ function rgba(h, a) { const A = rgb(h); return `rgba(${A[0]},${A[1]},${A[2]},${a
    Controller layout (standard mapping):
      LS move  RS aim  RT telekinesis (hold grab, release throw)  LT absorb (hold, release = blast)
      RB repulse  LB gravity well  A dash  X heal (hold)  Y drain (hold)  B drop  Start pause  Back map */
-const SETTINGS = { music: .6, sfx: .8, rumble: true, shake: true, deadzone: .18, assist: 1, hud: 1, costume: 'raincoat', binds: { key: {}, pad: {} } };   // deadzone: left stick (right stick +.04); assist: aim-assist cone multiplier; hud: HUD scale
-try { const s = JSON.parse(localStorage.getItem('kc_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
+const SETTINGS = { music: .6, sfx: .8, rumble: true, shake: true, deadzone: .18, assist: 1, hud: 1, see: 2, full: true, sv: 2, costume: 'raincoat', binds: { key: {}, pad: {} } };   // deadzone: left stick (right stick +.04); assist: aim-assist cone multiplier; hud: HUD scale; see: how the hero shows behind buildings; full: go fullscreen when a game starts
+try { const s = JSON.parse(localStorage.getItem('kc_settings') || 'null'); if (s) { Object.assign(SETTINGS, s); if (s.sv !== 2) { SETTINGS.see = 2; SETTINGS.sv = 2; } } } catch (e) { }   // sv 2: the hero shows through a window in the wall by default (settings saved before that are moved over once)
 function saveSettings() { try { localStorage.setItem('kc_settings', JSON.stringify(SETTINGS)); } catch (e) { } }
 
 const Input = (() => {
@@ -820,7 +820,8 @@ function openBlock(blk, tx0, ty0) {
     buildings.push(f);
     for (let ty = 0; ty < 2; ty++) for (let tx = 0; tx < 3; tx++) map[(fy + ty) * MAP_W + fx + tx] = T.BLD;
     const piles = [[ix + 56, iy + 150], [ix + 168, iy + 156], [ix + 70, iy + 96]];
-    for (const [px, py] of piles) { const n = 2 + ((srand() * 3) | 0); for (let i = 0; i < n; i++) spots.props.push({ k: srand() < .3 ? 'barrel' : 'crate', x: px + srange(-18, 18), y: py + srange(-14, 14), ang: srange(0, TAU) }); }
+    for (const [px, py] of piles) { const n = 2 + ((srand() * 3) | 0); for (let i = 0; i < n; i++) { const k = srand() < .3 ? 'barrel' : 'crate', x = px + srange(-18, 18); let y = py + srange(-14, 14); const ang = srange(0, TAU); for (let g = 0; g < 8 && !walkable(x, y, 14); g++) y += 10;   // not inside the steel frame or the fence
+      spots.props.push({ k, x, y, ang }); } }
     spots.props.push({ k: 'dumpster', x: ix + 176, y: iy + 98, ang: 0 });
   }
 }
@@ -1064,7 +1065,7 @@ function onWallHit(e, speed, nx, ny) {
   if (e.prop && !e.driving && (e.thrower || e.held)) {
     const dmg = IMPACT_K * .35 * .5 * e.m * speed * speed;
     hurt(e, dmg, { by: e.thrower });
-    if (S.e_chain && e.thrower === 'player' && !e.held && !e.dead && e.thrownT > 0) { e.hp = 0; kill(e, { by: 'player' }); }
+    if ((e.fuse || (S.e_chain && e.thrower === 'player' && e.thrownT > 0)) && !e.held && !e.dead) { e.hp = 0; kill(e, { by: 'player' }); }
     FX.sparks(e.x - nx * e.r, e.y - ny * e.r, 6, '#ffd9a0', speed * .4); sfx(e.m > 4 ? 'heavy' : 'hit', e.x, e.y, .7);
     if (e.m > 4) shake(.25);
   } else if (!e.prop && !e.static && e.stun > 0 && e.flung && e.kind !== 'player' && (e.kind !== 'boss' || e.lastHitBy === 'player')) {
@@ -1102,6 +1103,7 @@ function impactHurt(src, dst, closing) {
   if (dst.prop && byP && !dst.held) { dst.thrower = 'player'; dst.thrownT = Math.max(dst.thrownT, .6); }
   // the projectile pays for it too: cars crumple, crates splinter
   if (src.prop && !src.held && closing > 220) hurt(src, dmg * .35, { by: src.thrower });
+  if (src.fuse && !src.held && !src.dead) { src.hp = 0; kill(src, { by: 'player' }); }
   impactFeedback(dmg, (src.x + dst.x) / 2, (src.y + dst.y) / 2, byP);
 }
 function resolvePair(a, b) {
@@ -1127,7 +1129,7 @@ const _grid = new Map();
 function physics(dt) {
   for (const e of act) {
     if (e.static || e.dead) continue;
-    if (e.thrownT > 0) e.thrownT -= dt;
+    if (e.thrownT > 0) e.thrownT -= dt; else if (e.fuse) e.fuse = false;   // a barrel that came to rest without hitting anything is safe again
     const sp0 = Math.hypot(e.vx, e.vy);
     if (e.thrower && !e.held && e.thrownT <= 0 && sp0 < 60) e.thrower = null;
     if (e.prop && !e.held && !e.driving) { const f = Math.pow(e.z > 1 ? .99 : e.def.fric, dt * 60); e.vx *= f; e.vy *= f; }
@@ -1186,6 +1188,11 @@ const FX = {
   smoke(x, y, n, col = '#3a3d48', big = 1) { for (let i = 0; i < n; i++) { const a = rnd(TAU), s = rnd(5, 40) * big; parts.push({ k: 'm', x: x + rnd(-6, 6), y: y + rnd(-6, 6), vx: Math.cos(a) * s, vy: Math.sin(a) * s - 10, life: rnd(.8, 1.8), max: 1.8, col, w: rnd(8, 16) * big, g: 2.2 }); } },
   debris(x, y, n, col, sp = 200) { for (let i = 0; i < n; i++) { const a = rnd(TAU), s = rnd(.3, 1) * sp; parts.push({ k: 'r', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.5, 1.1), max: 1.1, col, w: rnd(2, 5), a: rnd(TAU), va: rnd(-14, 14) }); } },
   embers(x, y, n) { for (let i = 0; i < n; i++) parts.push({ k: 'd', x: x + rnd(-8, 8), y: y + rnd(-8, 8), vx: rnd(-20, 20), vy: rnd(-60, -15), life: rnd(.5, 1.2), max: 1.2, col: pick(['#ffb040', '#ff7020', '#ffd080']), w: rnd(1, 2.2) }); },
+  fire(x, y, rad) {   // the body of an explosion: puffs that rise and cool (drawn in 11j_fx.js)
+    const n = Math.round(clamp(rad / 6, 8, 20)), w0 = clamp(rad / 10, 4, 11);
+    for (let i = 0; i < n; i++) { const a = rnd(TAU), d = Math.sqrt(Math.random()) * rad * .34, s = rnd(8, 55), life = rnd(.32, .78); parts.push({ k: 'f', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, z: rnd(0, 8), vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: rnd(18, 58), life, max: life * rnd(1, 1.25), w: w0 * rnd(.45, 1) * (1 - d / rad) }); }
+    parts.push({ k: 'f', x, y, z: 4, vx: 0, vy: 0, vz: 30, life: .5, max: .5, w: w0 * 1.25, heart: 1 });   // the heart of it
+  },
   ring(x, y, max, col, life = .35, w = 3, r0 = 4) { rings.push({ x, y, r: r0, max, col, life, ml: life, w }); },
   flash(x, y, r, col, life = .15, a = 1) { dlights.push({ x, y, r, col, life, max: life, a }); if (dlights.length > 60) dlights.shift(); }
 };
@@ -1224,7 +1231,7 @@ function addXP(n, x, y) {
   while (G.xp >= xpNeed()) {
     G.xp -= xpNeed(); G.level++; G.points++; P.hp = Math.min(S.maxHp, P.hp + S.maxHp * .35);
     toast('Level ' + G.level + '  ·  +1 skill point', '#ffc24a', true); sfx('level'); FX.ring(P.x, P.y, 120, '#ffc24a', .6, 3);
-    showHint([{ a: 'menu' }, { t: 'Spend your skill point' }], 'skillpt');
+    showHint([{ a: 'menu' }, { t: 'Spend skill points' }], 'skillpt');
     saveGame();
   }
 }
@@ -1240,7 +1247,8 @@ function explosion(x, y, rad, dmg, by) {
   sfx('boom', x, y); shake(.7); hitstop(.06);
   if (by === 'player' || dist({ x, y }, P) < 300) Input.rumble(.9, .7, 260);
   FX.flash(x, y, rad * 3.2, '#ff9a40', .45, 1.2); FX.ring(x, y, rad * 1.1, '#ffb060', .3, 5);
-  FX.dots(x, y, 26, '#ffb030', 260, .7); FX.dots(x, y, 12, '#ff5020', 180, .6); FX.sparks(x, y, 18, '#ffe0a0', 420); FX.smoke(x, y, 12, '#2a2c34', 1.6); FX.debris(x, y, 10, '#555a66', 300);
+  FX.smoke(x, y, 10, '#454852', 1.6); FX.fire(x, y, rad);
+  FX.dots(x, y, 26, '#ffb030', 260, .7); FX.dots(x, y, 12, '#ff5020', 180, .6); FX.sparks(x, y, 18, '#ffe0a0', 420); FX.debris(x, y, 10, '#555a66', 300);
   decals.push({ x, y, r: rad * .55, life: 40, k: 'scorch' }); if (decals.length > 60) decals.shift();
   for (const e of act) {
     if (e.dead || (e.static && e.kind !== 'hideout' && e.kind !== 'tower')) continue;
@@ -1343,6 +1351,7 @@ function clearHideout(e) {
   const d = e.did; DS[d].hideoutsLeft--; DS[d].destroyed = DS[d].destroyed || []; DS[d].destroyed.push(e.hid);
   toast(DIST[d].gang + ' hideout cleared  ' + (3 - DS[d].hideoutsLeft) + '/3', '#ffc24a', true); sfx('level');
   if (DS[d].hideoutsLeft === 0) later(1.6, () => spawnBoss(d));
+  { const c = { x: e.x, y: e.rect.y + e.rect.h + 54 }; if (walkable(c.x, c.y, 12)) G.check = c; }   // you get back up here, not at the far end of the district
   saveGame();
 }
 function playerDie() {
@@ -1421,7 +1430,7 @@ function updateTKTarget() {
 }
 function grab(e) {
   const p = P;
-  e.held = true; e.heldBy = p; e.thrower = 'player'; e.thrownT = 99; e.spin = 0;
+  e.held = true; e.heldBy = p; e.thrower = 'player'; e.thrownT = 99; e.spin = 0; e.fuse = false;
   if (e.kind === 'car') { e.curb = false; e.claimed = false; e.parkTo = null; }
   if (e.kind === 'car' && e.driving) ejectDriver(e);
   if (!e.prop) { e.stun = 1; e.tgt = null; e.state = 'grabbed'; }
@@ -1462,6 +1471,7 @@ function throwHeld() {
   const spd = throwSpeed(h.m), as = assistTarget(h, aim.ang, spd), ang = as ? as.ang : aim.ang;
   h.vx = Math.cos(ang) * spd + p.vx * .4; h.vy = Math.sin(ang) * spd + p.vy * .4; h.vz = 115; h.z = Math.max(h.z, 14);
   h.thrower = 'player'; h.thrownT = 1.5; h.spin = (h.kind === 'car' || h.kind === 'dumpster') ? rnd(-5, 5) : rnd(-15, 15);
+  h.fuse = h.kind === 'barrel';   // a thrown explosive barrel goes off on the first solid thing it hits (physics: impactHurt, onWallHit)
   if (h.kind === 'car') h.ang = ang;
   if (!h.prop) { h.stun = 1.4; h.flung = true; h.lastHitBy = 'player'; }
   p.vx -= Math.cos(ang) * h.m * 9; p.vy -= Math.sin(ang) * h.m * 9; p.throwT = .18;
@@ -1799,8 +1809,22 @@ const BOSS_PATS = [
 ];
 function radial(e, n, sp, col, dmg = 9, fire) { const off = rnd(TAU); for (let i = 0; i < n; i++) shoot(e, off + i / n * TAU, { speed: sp, col, dmg, r: 5, life: 3, fire, quiet: i > 0 }); sfx('boom', e.x, e.y, .5); }
 function gangCount() { let n = 0; for (const o of act) if (o.team === 'gang' && !o.static && o.kind !== 'boss' && !o.dead) n++; return n; }
+const BOSS_LEASH = 780;
 function aiBoss(e, dt) {
   const t = P, dx = t.x - e.x, dy = t.y - e.y, d = Math.hypot(dx, dy) || 1;
+  // The fight belongs to the plaza. If you fall or run far off he breaks off, walks back and waits, keeping his wounds;
+  // he no longer follows you across the district or bombards you from out of sight.
+  const home = spots.boss[e.did], pd = dist(P, home);
+  if (e.away) { if (G.mode !== 'dead' && (pd < BOSS_LEASH - 180 || d < 260)) { e.away = false; e.pt = 1.2; } }
+  else if (pd > BOSS_LEASH || G.mode === 'dead') e.away = true;
+  if (e.away) {
+    releaseLifted(e); e.act = ''; e.charging = false; e.awayT = (e.awayT || 0) + dt;
+    const hx = home.x - e.x, hy = home.y - e.y, hd = Math.hypot(hx, hy);
+    if (hd > 40) { if (e.awayT > 4 && !inView(e.x, e.y, 80)) { e.x = home.x; e.y = home.y; e.vx = e.vy = 0; } else { steer(e, hx, hy, e.speed, dt); face(e, Math.atan2(hy, hx), dt, 6); } }
+    else steer(e, 0, 0, 0, dt, 4);
+    return;
+  }
+  e.awayT = 0;
   if (e.stagger > 0) { releaseLifted(e); e.stagger -= dt; steer(e, 0, 0, 0, dt, 4); if (Math.random() < dt * 8) FX.dots(e.x, e.y - e.r, 1, '#ffd23c', 40, .5); return; }
   const ph2 = e.hp < e.maxhp * .5;
   if (ph2 && !e.ph2) { e.ph2 = true; toast(e.name + ' is enraged', '#ff7a3b', true); FX.ring(e.x, e.y, 160, e.col, .5, 5); shake(.4); sfx('charge', e.x, e.y); }
@@ -2523,6 +2547,8 @@ function update(dt) {
   updatePlayer(dt); updateAI(dt); updateWells(dt); physics(dt); updateBullets(dt);
   if (G.mode === 'play') { updateEncounters(dt); updatePickups(dt); tutorial(); }
   streamPopulation(dt);
+  G.gateMsgT = (G.gateMsgT || 0) - dt;
+  if (G.mode === 'play' && G.gateMsgT <= 0) for (let i = 0; i < 2; i++) if (!gatesOpen[i] && Math.abs(P.x - (GATE_TX[i] * TILE + 16)) < 36) { G.gateMsgT = 9; toast('Sealed · take down ' + DIST[i].boss + ' to open the way', '#ff6a80'); }
   const dd = districtAt(P.x);
   if (dd > 0 && !DS[dd].intro && gatesOpen[dd - 1] && G.mode === 'play') { DS[dd].intro = true; G.check = checkpointFor(dd - 1); introDistrict(dd); saveGame(); }
   for (let i = ents.length - 1; i >= 0; i--) if (ents[i].dead) ents.splice(i, 1);
@@ -2598,6 +2624,8 @@ function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill()
 
 /* ---------- ground ---------- */
 function drawGround() {
+  drawSea();
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, WORLD_W, WORLD_H); ctx.clip();   // road markings and the rest stop at the edge of the map (they used to run on into the dark)
   for (let d = 0; d < 3; d++) {
     const x0 = d === 0 ? 0 : DIST_SPLIT[d - 1], x1 = d === 2 ? WORLD_W : DIST_SPLIT[d];
     ctx.fillStyle = DIST[d].ground; ctx.fillRect(x0, 0, x1 - x0, WORLD_H);
@@ -2681,6 +2709,7 @@ function drawGround() {
     }
     else if (d.k === 'wreck') { ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.ang || 0); ctx.globalAlpha = a; ctx.fillStyle = '#16171c'; ctx.fillRect(-19, -10, 38, 20); ctx.fillStyle = '#26272e'; ctx.fillRect(-12, -7, 20, 14); ctx.restore(); ctx.globalAlpha = 1; }
   }
+  ctx.restore();
 }
 
 /* ---------- light pass (additive) ---------- */
@@ -3461,7 +3490,7 @@ function isoDir(v) {
 /* ---------- crisp pixel primitives (art space) ---------- */
 function ipoly(pts, c) {
   let y0 = Infinity, y1 = -Infinity; for (const p of pts) { if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
-  ctx.fillStyle = c; y0 = Math.max(Math.round(y0), -2); y1 = Math.min(Math.round(y1), ART_H + 2);
+  ctx.fillStyle = c; y0 = Math.max(Math.round(y0), -2); y1 = Math.min(Math.round(y1), ctx.canvas.height + 2);
   const xs = [];
   for (let y = y0; y < y1; y++) {
     const yc = y + .5; xs.length = 0;
@@ -3491,97 +3520,13 @@ function ibox(x, y, w, d, z0, hz, top, south, east) {
 /* ---------- buildings ---------- */
 // lit window: a 3x2 pixel slab that follows the slope of its wall
 function iwin(p, slope, c) { ctx.fillStyle = c; const X = Math.round(p[0]), Y = Math.round(p[1]); for (let k = -1; k <= 1; k++) ctx.fillRect(X + k, Y - 1 + Math.round(k * slope), 1, 2); }
-function drawIsoBuilding(b) {
-  const x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h, ht = b.ht, t = G.time;
-  const st = DS[b.d].status, pal = neonPal(b.d), litK = st === 'liberated' ? 1.35 : st === 'dominated' ? .75 : 1;
-  const S_ = shade(b.wall, .95), E_ = shade(b.wall, .6);
-  const A = [isoXY(x0, y1, 0), isoXY(x1, y1, 0), isoXY(x1, y1, ht), isoXY(x0, y1, ht)];   // south wall
-  const B = [isoXY(x1, y1, 0), isoXY(x1, y0, 0), isoXY(x1, y0, ht), isoXY(x1, y1, ht)];   // east wall
-  ipoly(A, S_); ipoly(B, E_);
-  // dark base and floor lines
-  iline(isoXY(x0, y1, 2), isoXY(x1, y1, 2), shade(b.wall, .5)); iline(isoXY(x1, y1, 2), isoXY(x1, y0, 2), shade(b.wall, .35));
-  for (let f = 30; f < ht - 6; f += 30) { iline(isoXY(x0, y1, f), isoXY(x1, y1, f), shade(b.wall, .8)); iline(isoXY(x1, y1, f), isoXY(x1, y0, f), shade(b.wall, .5)); }
-  // windows (one row per floor; unlit ones are dark panes)
-  const lit = [];
-  for (const [side, list] of [[2, b.win[2]], [1, b.win[1]]]) for (const wn of list) {
-    if (wn.v * ht < 34 || Math.round(wn.v * ht / 15) % 2) continue;
-    let on = wn.roll < b.lit * litK; if (wn.roll > .97 && Math.sin(t * .7 + wn.u * 50) > .6) on = !on;
-    const p = side === 2 ? isoXY(lerp(x1, x0, wn.u), y1, wn.v * ht) : isoXY(x1, lerp(y0, y1, wn.u), wn.v * ht);
-    const col = on ? (st === 'dominated' && wn.roll < .1 ? '#ff4a3a' : wn.c) : shade(b.wall, side === 2 ? .55 : .38);
-    iwin(p, side === 2 ? .5 : -.5, on && side === 1 ? shade(col, .8) : col);
-    if (on && wn.roll < .08) lit.push(p, col);
-  }
-  for (let i = 0; i < lit.length; i += 2) iglow(lit[i][0], lit[i][1], 6, lit[i + 1], .3);
-  // door
-  if (b.door) {
-    const dx = (x0 + x1) / 2, dh = Math.min(ht - 4, 28);
-    ipoly([isoXY(dx - 8, y1, 0), isoXY(dx + 8, y1, 0), isoXY(dx + 8, y1, dh), isoXY(dx - 8, y1, dh)], '#0b0a0d');
-    ipoly([isoXY(dx - 5, y1, 0), isoXY(dx + 5, y1, 0), isoXY(dx + 5, y1, dh - 4), isoXY(dx - 5, y1, dh - 4)], '#e0b878');
-    iline(isoXY(dx - 10, y1, dh + 2), isoXY(dx + 10, y1, dh + 2), shade(b.wall, .4));
-    const g = isoXY(dx, y1, 4); iglow(g[0], g[1], 8, '#ffd696', .5);
-  }
-  // ground-floor shopfronts
-  for (const sh of b.shops) {
-    if (sh.side !== 2 && sh.side !== 1) continue;
-    const col = pal[sh.ci], top = Math.min(ht - 3, 22);
-    const Pt = (u, z) => sh.side === 2 ? isoXY(lerp(x1, x0, u), y1, z) : isoXY(x1, lerp(y0, y1, u), z);
-    ipoly([Pt(sh.u0, 2), Pt(sh.u1, 2), Pt(sh.u1, top), Pt(sh.u0, top)], sh.side === 2 ? col : shade(col, .75));
-    iline(Pt(sh.u0, top * .55), Pt(sh.u1, top * .55), '#ffffff');
-    iline(Pt(sh.u0 - .02, top + 4), Pt(sh.u1 + .02, top + 4), shade(col, .45));   // awning
-    const m = Pt((sh.u0 + sh.u1) / 2, top / 2); iglow(m[0], m[1], 16, col, .45);
-  }
-  // neon signs
-  for (const sg of b.signs) {
-    if (sg.side !== 2 && sg.side !== 1) continue;
-    const on = sg.blink ? (Math.sin(t * 3 + sg.ph) > -.2 ? 1 : .15) : 1, col = pal[sg.ci];
-    const Pt = (u, v) => sg.side === 2 ? isoXY(lerp(x1, x0, u), y1, v * ht) : isoXY(x1, y0 + b.h * u, v * ht);
-    const a = Pt(sg.u, sg.v0), c = Pt(sg.u2, sg.v1);
-    ctx.globalAlpha = on; iline(a, c, col); iline([a[0] + 1, a[1]], [c[0] + 1, c[1]], col);
-    const n = Math.max(1, Math.round(Math.hypot(c[0] - a[0], c[1] - a[1]) / 3));
-    for (let i = 0; i <= n; i += 2) ipx(lerp(a[0], c[0], i / n), lerp(a[1], c[1], i / n), '#ffffff');
-    ctx.globalAlpha = 1; iglow((a[0] + c[0]) / 2, (a[1] + c[1]) / 2, 24, col, .55 * on);
-  }
-  // roof
-  const T = [isoXY(x0, y0, ht), isoXY(x1, y0, ht), isoXY(x1, y1, ht), isoXY(x0, y1, ht)];
-  ipoly(T, b.roof);
-  const I = [isoXY(x0 + 5, y0 + 5, ht), isoXY(x1 - 5, y0 + 5, ht), isoXY(x1 - 5, y1 - 5, ht), isoXY(x0 + 5, y1 - 5, ht)];
-  for (let i = 0; i < 4; i++) iline(I[i], I[(i + 1) % 4], shade(b.roof, .75));
-  iline(T[0], T[1], shade(b.roof, 1.3)); iline(T[0], T[3], shade(b.roof, 1.3));
-  iline(T[3], T[2], shade(b.roof, 1.7)); iline(T[2], T[1], shade(b.roof, 1.5));
-  for (const p of b.props) {
-    if (p.k === 'box') ibox(p.x, p.y, p.w, p.h, ht, 10, shade(b.roof, 1.6), shade(b.roof, 1.25), shade(b.roof, .95));
-    else if (p.k === 'tank') { const c = isoXY(p.x + p.w / 2, p.y + p.w / 2, ht); const r = p.w * ISO_K * .55; ctx.fillStyle = shade(b.roof, 1.1); ctx.fillRect(Math.round(c[0] - r), Math.round(c[1] - 5), Math.round(r * 2), 5); idisc(c[0], c[1] - 5, r, shade(b.roof, 1.75)); idisc(c[0], c[1] - 5, r * .5, shade(b.roof, 1.4)); }
-    else if (p.k === 'pad') { ctx.save(); ctx.setTransform(ISO_K, ISO_K / 2, -ISO_K, ISO_K / 2, ISO.ox, ISO.oy - ht * ISO_KZ); ctx.strokeStyle = rgba(pal[0], .8); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, p.w, 0, TAU); ctx.stroke(); ctx.fillStyle = rgba(pal[0], .8); ctx.fillRect(p.x - p.w * .35, p.y - p.w * .45, 4, p.w * .9); ctx.fillRect(p.x + p.w * .35 - 4, p.y - p.w * .45, 4, p.w * .9); ctx.fillRect(p.x - p.w * .35, p.y - 2, p.w * .7, 4); ctx.restore(); }
-  }
-  if (b.trim !== null) {
-    const col = pal[b.trim]; for (let i = 0; i < 4; i++) iline(T[i], T[(i + 1) % 4], col);
-    iglow((T[2][0] + T[3][0]) / 2, (T[2][1] + T[3][1]) / 2, 22, col, .3); iglow((T[1][0] + T[2][0]) / 2, (T[1][1] + T[2][1]) / 2, 18, col, .25);
-  }
-  if ((hash2(b.x, b.y) & 3) === 0) { const on = Math.sin(t * 2.4 + b.x) > 0, p = isoXY(x1 - 8, y0 + 8, ht); ctx.fillStyle = on ? '#ff2a2a' : '#401010'; ctx.fillRect(Math.round(p[0]), Math.round(p[1]) - 1, 1, 2); if (on) iglow(p[0], p[1], 6, '#ff2a2a', .7); }
-  // edges: dark far-left edge, bright front corner
-  iline(A[0], A[3], shade(b.wall, .45)); iline(A[1], A[2], shade(b.wall, 1.25));
-}
+// drawIsoBuilding lives in 11g_buildings.js
 
 /* ---------- hideouts ---------- */
 // drawIsoHideout lives in 11f_blocks.js
 
 /* ---------- trees, lamps, barricades ---------- */
-function drawIsoTree(t) {
-  const b = isoXY(t.x, t.y, 0), c = isoXY(t.x, t.y, t.h), r = t.r * ISO_K * .85;
-  ctx.fillStyle = '#2a1c12'; ctx.fillRect(Math.round(b[0]), Math.round(c[1]), 2, Math.round(b[1] - c[1]));
-  idisc(c[0], c[1] + 1, r, shade(t.c, .7));
-  idisc(c[0] + r * .35, c[1] - r * .2, r * .72, t.c);
-  idisc(c[0] - r * .35, c[1] + r * .15, r * .62, t.c);
-  idisc(c[0] - r * .2, c[1] - r * .4, r * .4, shade(t.c, 1.45));
-}
-function drawIsoLamp(l) {
-  const b = isoXY(l.x, l.y, 0), top = isoXY(l.x, l.y, 64), c = lampCol(l.d);
-  let k = 1; if (l.broken) k = .05; else if (l.flick) k = Math.sin(G.time * 13 + l.ph) > -.7 ? 1 : .25;
-  ctx.fillStyle = '#2a2e3a'; ctx.fillRect(Math.round(b[0]), Math.round(top[1]), 1, Math.round(b[1] - top[1]));
-  ctx.fillStyle = '#4a4e5e'; ctx.fillRect(Math.round(b[0]) - 1, Math.round(b[1]) - 1, 3, 1); ctx.fillRect(Math.round(top[0]) - 1, Math.round(top[1]), 3, 1);
-  ctx.fillStyle = k > .5 ? '#fff6d8' : '#5a5040'; ctx.fillRect(Math.round(top[0]) - 1, Math.round(top[1]) + 1, 3, 1);
-  if (k > .2) iglow(top[0], top[1] + 1, 7, c, .7 * k);
-}
+// drawIsoTree and drawIsoLamp live in 11i_street.js
 function drawGateStripes() { // the barricade's footprint on the ground (affine pass): a dark sill with yellow and red hazard bars
   for (let i = 0; i < 2; i++) {
     if (gatesOpen[i]) continue;
@@ -3644,11 +3589,10 @@ function drawRain(dt) {
 }
 
 /* ---------- seeing the hero behind buildings ----------
-   SEE picks how: 0 = he is simply hidden, 1 = his silhouette shows on the wall in the karma colour,
+   SETTINGS.see picks how (Settings > Display): 0 = he is simply hidden, 1 = his silhouette shows on the wall in the karma colour,
    2 = a round window with a dithered rim opens in the wall around him, 3 = the whole wall turns see-through (every
    other pixel). 2 and 3 work by keeping a copy of the picture from just before the building is drawn and putting part of
    it back on top, so the building itself is drawn exactly as usual. */
-let SEE = 0;
 const seeCv = document.createElement('canvas'); seeCv.width = ART_W; seeCv.height = ART_H; const seeCtx = seeCv.getContext('2d');
 const SEE_R = 24, _holes = {};
 const ghostCv = document.createElement('canvas'), ghostCtx = ghostCv.getContext('2d');
@@ -3682,14 +3626,14 @@ function drawBoxSeeThrough(b, hp, dt) {   // returns true if it drew the box
   const poly = hx || boxHex(b);
   seeCtx.setTransform(1, 0, 0, 1, 0, 0); seeCtx.globalCompositeOperation = 'copy'; seeCtx.drawImage(artCv, 0, 0);   // what is behind the building
   seeCtx.globalCompositeOperation = 'destination-in';
-  if (SEE === 2) { const r = Math.max(4, Math.round(SEE_R * (1 - (1 - k) * (1 - k)))); seeCtx.drawImage(holeMask(r), Math.round(hp[0]) - r, Math.round(hp[1]) - 10 - r); }
+  if (SETTINGS.see === 2) { const r = Math.max(4, Math.round(SEE_R * (1 - (1 - k) * (1 - k)))); seeCtx.drawImage(holeMask(r), Math.round(hp[0]) - r, Math.round(hp[1]) - 10 - r); }
   else { seeCtx.globalAlpha = k; seeCtx.drawImage(checker(), 0, 0); seeCtx.globalAlpha = 1; }
   seeCtx.fillStyle = '#fff'; seeCtx.beginPath(); for (const p of poly) seeCtx.lineTo(Math.round(p[0]), Math.round(p[1])); seeCtx.closePath(); seeCtx.fill();   // only inside this building's outline
   seeCtx.globalCompositeOperation = 'source-over';
   b.draw(o); artT(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(seeCv, 0, 0);
   return true;
 }
-function drawHeroSilhouette(from, hp) {   // SEE 1: the hero's shape in the karma colour wherever a building covers him
+function drawHeroSilhouette(from, hp) {   // mode 1: the hero's shape in the karma colour wherever a building covers him
   const lift = Math.round((P.z || 0) * .5), x0 = hp[0] - 14, y0 = hp[1] - 30 - lift, x1 = hp[0] + 14, y1 = hp[1] + 3;
   let any = false; seeCtx.setTransform(1, 0, 0, 1, 0, 0); seeCtx.globalCompositeOperation = 'source-over'; seeCtx.clearRect(0, 0, ART_W, ART_H); seeCtx.fillStyle = '#fff';
   for (let i = Math.max(0, from); i < _boxes.length; i++) {
@@ -3723,6 +3667,7 @@ function render(dt) {
   // ---- flat pass: ground, light pools, shadows ----
   groundT();
   drawGround();
+  artT(); drawSeaArt(); groundT();
   ctx.globalCompositeOperation = 'lighter'; drawGroundLights(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   drawGateStripes();
   _vis.length = 0;
@@ -3762,8 +3707,9 @@ function render(dt) {
     addPt(e.x, e.y, e.state === 'wounded' ? -1e6 : e.x + e.y + z * 4, r * SPR_K * 1.8 + 6, r * SPR_K * 3.2 + z * SPR_K + 10, drawUpright, e);
   }
   let heroSlot = -1; if (G.mode !== 'dead' && G.mode !== 'title') { const sl = addPt(P.x, P.y, P.x + P.y + (P.z || 0) * 4, 20, 34, drawUpright, P); if (sl !== undefined) heroSlot = sl; }
-  for (const t of trees) if (inView(t.x, t.y, 60)) addPt(t.x, t.y, t.x + t.y, t.r, t.h * ISO_KZ + t.r, drawIsoTree, t);
+  for (const t of trees) if (inView(t.x, t.y, 60)) addPt(t.x, t.y, t.x + t.y, t.r + 4, t.h * ISO_KZ + t.r * 2 + 6, drawIsoTree, t);
   for (const d of decos) if (inView(d.x, d.y, 60)) addPt(d.x, d.y, d.x + d.y, 14, 40, drawIsoHoop, d);
+  for (const sg of streetSignals()) if (inView(sg.x, sg.y, 30)) addPt(sg.x, sg.y, sg.x + sg.y, 4, 24, drawIsoSignal, sg);
   for (const l of lamps) if (inView(l.x, l.y, 40)) addPt(l.x, l.y, l.x + l.y, 3, 20, drawIsoLamp, l);
   for (const p of pickups) if (inView(p.x, p.y, 30)) addPt(p.x, p.y, p.x + p.y, 8, 12, pp => { uprightT(pp.x, pp.y); drawPickup(pp); }, p);
   _pts.sort((a, b) => a.slot - b.slot || a.key - b.key);
@@ -3771,9 +3717,9 @@ function render(dt) {
   let pi = 0; const heroPt = isoXY(P.x, P.y, 0);
   for (let i = 0; i <= _boxes.length; i++) {
     while (pi < _pts.length && _pts[pi].slot === i) { const p = _pts[pi++]; p.draw(p.o); artT(); ctx.globalAlpha = 1; }
-    if (i < _boxes.length) { const b = _boxes[i]; if (!(SEE >= 2 && heroSlot >= 0 && i >= heroSlot && drawBoxSeeThrough(b, heroPt, dt))) b.draw(b.o); }
+    if (i < _boxes.length) { const b = _boxes[i]; if (!(SETTINGS.see >= 2 && heroSlot >= 0 && i >= heroSlot && drawBoxSeeThrough(b, heroPt, dt))) b.draw(b.o); }
   }
-  if (SEE === 1 && heroSlot >= 0) drawHeroSilhouette(heroSlot, heroPt);
+  if (SETTINGS.see === 1 && heroSlot >= 0) drawHeroSilhouette(heroSlot, heroPt);
   ISO.upright = false;
   // ---- overlays on the ground (pixel effects, art space): warnings, aim lasers, hostile markers, telekinesis, effects, splashes ----
   artT();
@@ -6226,10 +6172,12 @@ function drawChar(e) {
   }
   if (e === P && (P.holding || P.absorbing || P.throwT > 0 || P.chan)) iglow(a[0], a[1] - 8 - lift, 12, kcol(), .6);
   if (e === P && P.absorbing) {
-    const k = P.charge / S.absCap, pu = .5 + .5 * Math.sin(t * 10), cx = Math.round(a[0]) + .5, cy = Math.round(a[1] - 9 - lift) + .5;
-    ctx.fillStyle = `rgba(140,240,255,${.1 + .06 * pu})`; ctx.beginPath(); ctx.arc(cx, cy, 14, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(160,250,255,${.6 + .3 * pu})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 14, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx, cy, 16, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();
+    // the shield: a dithered bubble with a hard rim and a glint; the white arc round it fills as it soaks up hits
+    const k = P.charge / S.absCap, pu = Math.sin(t * 10) > 0, cx = Math.round(a[0]), cy = Math.round(a[1] - 9 - lift);
+    ctx.globalAlpha = .3; iblob(cx, cy, 14, 14, '#8cf0ff', 3); ctx.globalAlpha = pu ? 1 : .8;
+    iring(cx, cy, 14, '#a0faff'); ctx.globalAlpha = .55; iring(cx, cy, 13, '#5fd0ea'); ctx.globalAlpha = 1;
+    iarcPx(cx, cy, 11, -2.5, -1.9, '#ffffff'); ipx(cx - 9, cy - 4, '#ffffff');
+    if (k > 0) { iarcPx(cx, cy, 16, -Math.PI / 2, -Math.PI / 2 + TAU * k, '#ffffff'); iarcPx(cx, cy, 17, -Math.PI / 2, -Math.PI / 2 + TAU * k, 'rgba(140,240,255,.7)'); }
   }
   // health bar (art pixels)
   if ((e.team === 'gang' || e.team === 'police') && e.kind !== 'boss' && e.hp < e.maxhp && (e.sinceHit || 0) < 4) {
@@ -6969,6 +6917,990 @@ function drawIsoHideout(e) {
   if (e.flash > 0) { ctx.globalAlpha = .8; ctx.drawImage(e._art.white, g.ax - 2, g.ay - 56); ctx.globalAlpha = 1; }
 }
 
+/* ============================== 11g BUILDINGS ============================== */
+/* Ordinary city buildings. The still picture of a building (walls, windows, shopfronts, the roof and everything standing
+   on it) is painted once into a small canvas and stamped every frame; whatever glows, blinks or drifts is drawn live on
+   top. The picture is repainted when the district changes hands, because window light and neon colours change with it.
+   What stands on a roof is made up here from the building's position (roofPlan), so the city generator and the save file
+   know nothing about it. */
+const BLD_PADX = 2, BLD_PADT = 30;
+
+/* ---------- small upright pixel pictures (water tower, dish, sign art) ---------- */
+const _pxCv = {};
+function pxCanvas(key, rows, pal, outline) {   // rows of characters -> canvas, with a 1 px margin (used by the outline)
+  let c = _pxCv[key]; if (c) return c;
+  const w = rows[0].length, h = rows.length; c = _pxCv[key] = document.createElement('canvas'); c.width = w + 2; c.height = h + 2; const g = c.getContext('2d');
+  const at = (x, y) => y >= 0 && y < h && x >= 0 && x < w && pal[rows[y][x]];
+  if (outline) { g.fillStyle = outline; for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) g.fillRect(x + 1, y + 1, 1, 1); }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const col = at(x, y); if (col) { g.fillStyle = col; g.fillRect(x + 1, y + 1, 1, 1); } }
+  return c;
+}
+const ROOF_ART = {
+  tank: px(`
+    .....R.....
+    ...rRRRr...
+    ..rRRRRRr..
+    .rrRRRRRrr.
+    .wwlwwlwwd.
+    .bbbbbbbbb.
+    .wwlwwlwwd.
+    .wwlwwlwwd.
+    .bbbbbbbbb.
+    .wwlwwlwwd.
+    ..k.....k..
+    ..k.k.k.k..
+    ..kk...kk..
+    ..k.....k..`),
+  dish: px(`
+    ..www..
+    .wllllw
+    wlllldw
+    wllddw.
+    .wwww..
+    ...k...
+    ..kkk..`)
+};
+const ROOF_PAL = {
+  wood: { R: '#5c4a44', r: '#3a2e2c', w: '#7a5636', l: '#946c44', d: '#553a26', b: '#2b2d36', k: '#3a3d48' },
+  steel: { R: '#8a90a0', r: '#5a6070', w: '#7a8192', l: '#a2a9b9', d: '#555b6a', b: '#2b2d36', k: '#3a3d48' },
+  dish: { w: '#c8ccd6', l: '#9aa0ae', d: '#6a7080', k: '#3a3d48' }
+};
+/* Neon sign pictures: '#' first tube colour, '+' second. 9 x 9 each. */
+const SIGN_PIC = [
+  px(`
+    ..+..+...
+    .+..+..+.
+    ..+..+...
+    #########
+    #.......#
+    .#.....#.
+    .#.....#.
+    ..#####..
+    ...###...`),   // noodle bowl
+  px(`
+    #########
+    .#.....#.
+    ..#.+.#..
+    ...#+#...
+    ....#....
+    ....#....
+    ....#....
+    ..#####..
+    .........`),   // cocktail
+  px(`
+    .##...##.
+    #..#.#..#
+    #...#...#
+    #.......#
+    .#.....#.
+    ..#...#..
+    ...#.#...
+    ....#....
+    .........`),   // heart
+  px(`
+    ....#....
+    ...###...
+    #########
+    .#######.
+    ..#####..
+    .###.###.
+    .##...##.
+    ##.....##
+    .........`),   // star
+  px(`
+    .........
+    ..#####..
+    .#.....#.
+    #..+++..#
+    #..+++..#
+    .#.....#.
+    ..#####..
+    .........
+    .........`),   // eye
+  px(`
+    ...###...
+    ...###...
+    ...###...
+    ...###...
+    #########
+    .#######.
+    ..#####..
+    ...###...
+    ....#....`),   // arrow
+  px(`
+    ...###...
+    ...###...
+    ...###...
+    #########
+    #########
+    #########
+    ...###...
+    ...###...
+    ...###...`),   // cross
+  px(`
+    ...######
+    ...#....#
+    ...#....#
+    ...#....#
+    ...#....#
+    .###..###
+    ####.####
+    .##...##.
+    .........`),   // music
+  px(`
+    ..+.+.+..
+    ...+.+...
+    .........
+    #######..
+    #.....###
+    #.....#.#
+    #.....###
+    .#####...
+    #########`),   // cup
+  px(`
+    .........
+    ..####..#
+    .#....###
+    #.+....##
+    #......##
+    .#....###
+    ..####..#
+    .........
+    .........`)    // fish
+];
+/* made-up sign lettering, 5 x 7 each: reads as writing, says nothing */
+const SIGN_GLYPH = [
+  px(`
+    ..#..
+    #####
+    ..#..
+    #####
+    ..#..
+    ..#..
+    ..#..`),
+  px(`
+    .....
+    #####
+    #...#
+    #...#
+    #...#
+    #####
+    .....`),
+  px(`
+    .....
+    .#.#.
+    .#.#.
+    .#..#
+    #...#
+    #...#
+    #...#`),
+  px(`
+    .#...
+    .#...
+    .###.
+    .#..#
+    .#...
+    .#...
+    .#...`),
+  px(`
+    .....
+    .###.
+    .....
+    .....
+    #####
+    .....
+    ..#..`),
+  px(`
+    ....#
+    .#.#.
+    ..#..
+    ..##.
+    .#..#
+    #....
+    .....`)
+];
+
+/* ---------- what stands on a roof ---------- */
+function roofPlan(b) {
+  if (b._roof) return b._roof;
+  const rnd = mulberry(hash2(b.x * 7 + 3, b.y * 13 + 1)), R = [], d = b.d, w = b.w, h = b.h;
+  const free = (x, y, pw, ph) => x >= 8 && y >= 8 && x + pw <= w - 8 && y + ph <= h - 8 && !R.some(o => x < o.x + o.w + 4 && x + pw + 4 > o.x && y < o.y + o.h + 4 && y + ph + 4 > o.y);
+  const place = (k, pw, ph, o, yMax = 1) => {
+    for (let i = 0; i < 16; i++) { const x = Math.round((8 + rnd() * (w - 16 - pw)) / 2) * 2, y = Math.round((8 + rnd() * (h - 16 - ph) * yMax) / 2) * 2; if (free(x, y, pw, ph)) { const it = Object.assign({ k, x, y, w: pw, h: ph, s: rnd() }, o); R.push(it); return it; } }
+    return null;
+  };
+  const pad = b.props.find(p => p.k === 'pad'); if (pad) R.push({ k: 'pad', x: w / 2 - pad.w - 2, y: h / 2 - pad.w - 2, w: pad.w * 2 + 4, h: pad.w * 2 + 4, r: pad.w, s: 0 });
+  // big roofs get a penthouse block (plant room / top flat) that breaks up the flat and steps the skyline
+  if (!pad && w >= 96 && h >= 96 && rnd() < (w * h > 30000 ? .8 : .5)) place('pent', Math.round(w * (.34 + rnd() * .16) / 4) * 4, Math.round(h * (.34 + rnd() * .16) / 4) * 4, { hz: 14 + ((rnd() * 3) | 0) * 4 + (d === 2 ? 6 : 0) }, .6);
+  // a neon sign for some roofs; it goes in first so it gets a spot towards the back, where it stands against the sky
+  if (rnd() < [.34, .26, .4][d] && w >= 64) {
+    const kind = rnd() < .45 ? 'pic' : rnd() < .5 ? 'txt' : 'both';
+    place('bill', kind === 'pic' ? 26 : 44, 6, { kind, pic: (rnd() * SIGN_PIC.length) | 0, g: [(rnd() * 6) | 0, (rnd() * 6) | 0, (rnd() * 6) | 0], ci: (rnd() * 4) | 0, mode: rnd() < .6 ? 0 : rnd() < .5 ? 1 : 2, ph: rnd() * 10 }, .45);
+  }
+  const menu = [[['ac', 3], ['hut', 1.2], ['sky', 1.5], ['tank', 1], ['vent', 2], ['dish', 1], ['mast', .7]],
+                [['tank', 2], ['tarp', 2], ['line', 1.6], ['hut', 1], ['vent', 2], ['ac', 1], ['sky', .5]],
+                [['ac', 3], ['solar', 2.6], ['dish', 1.4], ['mast', 1], ['sky', 1], ['vent', 1]]][d];
+  const size = { ac: [18, 12], hut: [20, 16], sky: [22, 14], tank: [14, 14], vent: [4, 4], dish: [8, 8], mast: [4, 4], tarp: [20, 14], line: [28, 4], solar: [30, 16] };
+  const total = menu.reduce((a, m) => a + m[1], 0), n = clamp(Math.round(w * h / 2400), 2, 16);
+  for (let i = 0; i < n; i++) {
+    let r = rnd() * total, k = menu[0][0]; for (const m of menu) { if (r < m[1]) { k = m[0]; break; } r -= m[1]; }
+    if ((k === 'hut' || k === 'mast') && R.some(o => o.k === k)) k = 'vent';
+    place(k, size[k][0], size[k][1], { c: (rnd() * 4) | 0 });
+  }
+  if ((hash2(b.x, b.y) & 3) === 0 && !R.some(o => o.k === 'mast')) place('mast', 4, 4, {});   // the old red rooftop light keeps its place in the skyline
+  R.sort((p, q) => (p.x + p.w / 2 + p.y + p.h / 2) - (q.x + q.w / 2 + q.y + q.h / 2));
+  return b._roof = R;
+}
+// neon sign panel: returns { w, h } in art pixels and paints it at X, Y (top-left). lit = tubes on.
+function signPanel(o, pal, X, Y, lit) {
+  const wide = o.kind !== 'pic', pw = o.kind === 'pic' ? 13 : o.kind === 'txt' ? 21 : 25, ph = o.kind === 'txt' ? 11 : 13;
+  if (!lit) {
+    ctx.fillStyle = '#3a3e4a'; ctx.fillRect(X + 2, Y + ph, 1, 4); ctx.fillRect(X + pw - 3, Y + ph, 1, 4); if (wide) ctx.fillRect(X + (pw >> 1), Y + ph, 1, 4);
+    ctx.fillStyle = '#07070c'; ctx.fillRect(X - 1, Y - 1, pw + 2, ph + 2); ctx.fillStyle = '#2c2f3a'; ctx.fillRect(X, Y, pw, ph); ctx.fillStyle = '#0e0d12'; ctx.fillRect(X + 1, Y + 1, pw - 2, ph - 2);
+  }
+  const c1 = lit ? mix(pal[o.ci], '#ffffff', .2) : '#34303a', c2 = lit ? mix(pal[(o.ci + 1) % 4], '#ffffff', .35) : '#3c3842', c3 = lit ? mix(pal[(o.ci + 2) % 4], '#ffffff', .25) : '#34303a';
+  const draw = (rows, x, y, a, b_) => rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') { ctx.fillStyle = row[i] === '+' ? b_ : a; ctx.fillRect(X + x + i, Y + y + j, 1, 1); } });
+  if (o.kind === 'pic') draw(SIGN_PIC[o.pic], 2, 2, c1, c2);
+  else if (o.kind === 'txt') for (let i = 0; i < 3; i++) draw(SIGN_GLYPH[o.g[i]], 2 + i * 6, 2, i === 1 ? c3 : c1, c1);
+  else { draw(SIGN_PIC[o.pic], 2, 2, c1, c2); for (let i = 0; i < 2; i++) draw(SIGN_GLYPH[o.g[i]], 13 + i * 6, 3, c3, c3); }
+  return { w: pw, h: ph };
+}
+function paintRoof(b, st, fx, pal, litK) {
+  const x0 = b.x, y0 = b.y, x1 = x0 + b.w, y1 = y0 + b.h, ht = b.ht, roof = b.roof, d = b.d;
+  const T = [isoXY(x0, y0, ht), isoXY(x1, y0, ht), isoXY(x1, y1, ht), isoXY(x0, y1, ht)], rr = mulberry(hash2(b.x + 11, b.y + 5));
+  ipoly(T, roof);
+  // worn patches, seams, puddles
+  for (let i = 0, n = 1 + ((b.w * b.h) / 9000 | 0); i < n; i++) { const pw = 14 + rr() * 26, ph = 10 + rr() * 18, px_ = x0 + 6 + rr() * (b.w - pw - 12), py_ = y0 + 6 + rr() * (b.h - ph - 12); ipoly([isoXY(px_, py_, ht), isoXY(px_ + pw, py_, ht), isoXY(px_ + pw, py_ + ph, ht), isoXY(px_, py_ + ph, ht)], shade(roof, rr() < .5 ? .9 : 1.1)); }
+  for (let u = 48; u < b.w - 10; u += 48) iline(isoXY(x0 + u, y0 + 6, ht), isoXY(x0 + u, y1 - 6, ht), shade(roof, .86));
+  for (let v = 64; v < b.h - 10; v += 64) iline(isoXY(x0 + 6, y0 + v, ht), isoXY(x1 - 6, y0 + v, ht), shade(roof, .86));
+  for (let i = 0, n = 1 + ((b.w * b.h) / 7000 | 0); i < n; i++) { const p = isoXY(x0 + 10 + rr() * (b.w - 20), y0 + 10 + rr() * (b.h - 20), ht); iellipse(p[0], p[1], 2 + rr() * 2, 1, mix(roof, '#6a86b8', .35)); ipx(p[0] - 1, p[1], mix(roof, '#b8d0f0', .5)); }
+  // parapet: a ledge line just inside the edge, lit rims
+  const I = [isoXY(x0 + 5, y0 + 5, ht), isoXY(x1 - 5, y0 + 5, ht), isoXY(x1 - 5, y1 - 5, ht), isoXY(x0 + 5, y1 - 5, ht)];
+  for (let i = 0; i < 4; i++) iline(I[i], I[(i + 1) % 4], shade(roof, .72));
+  iline(T[0], T[1], shade(roof, 1.3)); iline(T[0], T[3], shade(roof, 1.3));
+  iline(T[3], T[2], shade(roof, 1.7)); iline(T[2], T[1], shade(roof, 1.5));
+  // everything that stands on it, back to front
+  const metal = [mix('#959cab', roof, .12), mix('#6c7383', roof, .12), mix('#494e5c', roof, .12)];
+  for (const o of roofPlan(b)) {
+    const X = x0 + o.x, Y = y0 + o.y, cx = X + o.w / 2, cy = Y + o.h / 2;
+    if (o.k === 'pad') {
+      ctx.save(); ctx.setTransform(ISO_K, ISO_K / 2, -ISO_K, ISO_K / 2, ISO.ox, ISO.oy - ht * ISO_KZ); ctx.strokeStyle = rgba(pal[0], .8); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, o.r, 0, TAU); ctx.stroke();
+      ctx.fillStyle = rgba(pal[0], .8); ctx.fillRect(cx - o.r * .35, cy - o.r * .45, 4, o.r * .9); ctx.fillRect(cx + o.r * .35 - 4, cy - o.r * .45, 4, o.r * .9); ctx.fillRect(cx - o.r * .35, cy - 2, o.r * .7, 4); ctx.restore();
+    } else if (o.k === 'pent') {
+      const hz = o.hz, top = shade(roof, 1.12);
+      ibox(X, Y, o.w, o.h, ht, hz, top, shade(b.wall, .95), shade(b.wall, .6));
+      const q = [isoXY(X, Y, ht + hz), isoXY(X + o.w, Y, ht + hz), isoXY(X + o.w, Y + o.h, ht + hz), isoXY(X, Y + o.h, ht + hz)];
+      iline(q[0], q[1], shade(roof, 1.4)); iline(q[0], q[3], shade(roof, 1.4)); iline(q[3], q[2], shade(roof, 1.9)); iline(q[2], q[1], shade(roof, 1.65));
+      iline(isoXY(X, Y + o.h, ht + 1), isoXY(X + o.w, Y + o.h, ht + 1), shade(b.wall, .5)); iline(isoXY(X + o.w, Y + o.h, ht + 1), isoXY(X + o.w, Y, ht + 1), shade(b.wall, .35));
+      const wc = ['#ffd890', '#ffe7b0', '#9fd8ff', '#ffc070'];
+      for (let u = 8; u < o.w - 4; u += 12) { const on = rr() < b.lit * litK * 1.2, c = wc[(rr() * 4) | 0]; iwin(isoXY(X + u, Y + o.h, ht + hz * .55), .5, on ? c : shade(b.wall, .55)); if (on && rr() < .3) fx.glow.push({ x: X + u, y: Y + o.h, z: ht + hz * .55, r: 6, col: c, a: .3 }); }
+      for (let v = 8; v < o.h - 4; v += 12) { const on = rr() < b.lit * litK * 1.2, c = wc[(rr() * 4) | 0]; iwin(isoXY(X + o.w, Y + v, ht + hz * .55), -.5, on ? shade(c, .8) : shade(b.wall, .38)); }
+      iline(isoXY(X + o.w, Y + o.h, ht), isoXY(X + o.w, Y + o.h, ht + hz), shade(b.wall, 1.25));
+      if (b.trim !== null && d === 2) { const col = pal[b.trim]; for (let i = 0; i < 4; i++) iline(q[i], q[(i + 1) % 4], col); }
+      { const f = isoXY(X + o.w * .3, Y + o.h * .4, ht + hz); iellipse(f[0], f[1], 3, 1.5, shade(roof, .7)); const g = isoXY(X + o.w * .7, Y + o.h * .6, ht + hz); ctx.fillStyle = shade(roof, 1.9); ctx.fillRect(Math.round(g[0]), Math.round(g[1]) - 2, 2, 2); }
+    } else if (o.k === 'ac') {
+      ibox(X, Y, o.w, o.h, ht, 7, metal[0], metal[1], metal[2]);
+      const f = isoXY(cx, cy, ht + 7); iellipse(f[0], f[1], 3.4, 1.7, '#22252e'); ipx(f[0], f[1], '#4a4f5c');
+      const g = isoXY(X + 3, Y + o.h, ht + 3); ctx.fillStyle = '#2a2d38'; for (let i = 0; i < 3; i++) ctx.fillRect(Math.round(g[0]) + i * 2, Math.round(g[1]) + i, 1, 1);
+      if (o.s < .3) { const q = isoXY(X + o.w, cy, ht); ctx.fillStyle = '#e0b020'; ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 3, 1, 1); }
+    } else if (o.k === 'hut') {
+      ibox(X, Y, o.w, o.h, ht, 16, shade(roof, 1.75), mix(shade(b.wall, 1.25), '#8a7a70', .35), mix(shade(b.wall, .8), '#4a3e3c', .35));
+      const dp = isoXY(X + o.w * .5, Y + o.h, ht); ctx.fillStyle = '#0d0b0e'; ctx.fillRect(Math.round(dp[0]) - 1, Math.round(dp[1]) - 4, 3, 4); ctx.fillStyle = '#ffe9b8'; ctx.fillRect(Math.round(dp[0]), Math.round(dp[1]) - 6, 1, 1);
+      fx.glow.push({ x: X + o.w * .5, y: Y + o.h, z: ht + 22, r: 5, col: '#ffd9a0', a: .5 });
+    } else if (o.k === 'sky') {
+      const q = [isoXY(X, Y, ht), isoXY(X + o.w, Y, ht), isoXY(X + o.w, Y + o.h, ht), isoXY(X, Y + o.h, ht)], on = o.s < b.lit * litK * 1.5, wc = ['#ffd890', '#ffe7b0', '#9fd8ff', '#ffc070'][o.c];
+      ipoly(q, on ? mix('#18202e', wc, .62) : '#161c28'); for (let i = 0; i < 4; i++) iline(q[i], q[(i + 1) % 4], shade(roof, 1.9));
+      iline(isoXY(cx, Y, ht), isoXY(cx, Y + o.h, ht), shade(roof, 1.9));
+      if (on) fx.glow.push({ x: cx, y: cy, z: ht, r: 9, col: wc, a: .28 });
+    } else if (o.k === 'tank') {
+      const p = isoXY(cx, cy, ht), c = pxCanvas('tank' + (d === 2 ? 's' : 'w'), ROOF_ART.tank, d === 2 ? ROOF_PAL.steel : ROOF_PAL.wood, '#08080d');
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(Math.round(p[0]) - 3, Math.round(p[1]), 9, 2);
+      ctx.drawImage(c, Math.round(p[0]) - 6, Math.round(p[1]) - 14);
+    } else if (o.k === 'dish') {
+      const p = isoXY(cx, cy, ht), c = pxCanvas('dish', ROOF_ART.dish, ROOF_PAL.dish, '#08080d'); ctx.drawImage(c, Math.round(p[0]) - 4, Math.round(p[1]) - 7);
+    } else if (o.k === 'vent') {
+      const p = isoXY(cx, cy, ht), PX = Math.round(p[0]), PY = Math.round(p[1]);
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(PX + 1, PY, 2, 1); ctx.fillStyle = '#5c616e'; ctx.fillRect(PX, PY - 2, 1, 3); ctx.fillStyle = '#9ba0ad'; ctx.fillRect(PX - 1, PY - 3, 3, 1); ctx.fillStyle = '#c9cdd6'; ctx.fillRect(PX - 1, PY - 3, 1, 1);
+      if (o.s < .55) fx.steam.push({ x: cx, y: cy, s: o.s * 40 });
+    } else if (o.k === 'mast') {
+      const p = isoXY(cx, cy, ht), PX = Math.round(p[0]), PY = Math.round(p[1]), hh = 9 + ((o.s * 5) | 0);
+      ctx.fillStyle = '#5a5f6c'; ctx.fillRect(PX, PY - hh, 1, hh); ctx.fillRect(PX - 2, PY - hh + 3, 5, 1); ctx.fillRect(PX - 1, PY - hh + 6, 3, 1); ctx.fillStyle = '#2a2d38'; ctx.fillRect(PX - 1, PY - 1, 3, 1);
+      fx.beacons.push({ x: cx, y: cy, hh });
+    } else if (o.k === 'tarp') {
+      const tc = ['#2a6aa8', '#2e8a5a', '#b8662a', '#3a78b8'][o.c];
+      ibox(X, Y, o.w, o.h, ht, 7, tc, shade(tc, .7), shade(tc, .5));
+      iline(isoXY(X, Y + o.h * .5, ht + 7), isoXY(X + o.w, Y + o.h * .5, ht + 7), shade(tc, 1.3));
+      const q = isoXY(X + o.w - 4, Y + o.h, ht); ctx.fillStyle = '#0d0b0e'; ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 3, 2, 3);
+    } else if (o.k === 'line') {
+      const a = isoXY(X, cy, ht), c = isoXY(X + o.w, cy, ht), cols = ['#e8e8f0', '#d04a4a', '#e0b020', '#4a8ad0', '#e8e8f0', '#c85aa0'];
+      for (const p of [a, c]) { ctx.fillStyle = '#4a4e5a'; ctx.fillRect(Math.round(p[0]), Math.round(p[1]) - 6, 1, 6); }
+      iline([a[0], a[1] - 6], [c[0], c[1] - 6], '#2e3038');
+      const n = Math.round(c[0] - a[0]); for (let i = 2, k = (o.c | 0); i < n - 1; i += 3, k++) { ctx.fillStyle = cols[k % cols.length]; ctx.fillRect(Math.round(a[0]) + i, Math.round(lerp(a[1], c[1], i / n)) - 5, 2, 2 + (k & 1)); }
+    } else if (o.k === 'solar') {
+      const q = [isoXY(X, Y, ht + 2), isoXY(X + o.w, Y, ht + 2), isoXY(X + o.w, Y + o.h, ht + 2), isoXY(X, Y + o.h, ht + 2)];
+      ipoly(q.map(p => [p[0], p[1] + 1]), '#0a0c12'); ipoly(q, '#1a2c52');
+      for (let u = 6; u < o.w; u += 6) iline(isoXY(X + u, Y, ht + 2), isoXY(X + u, Y + o.h, ht + 2), '#35548e');
+      iline(isoXY(X, cy, ht + 2), isoXY(X + o.w, cy, ht + 2), '#35548e'); iline(q[0], q[1], '#5a7cc0');
+    } else if (o.k === 'bill') {
+      const p = isoXY(cx, cy, ht), dims = { pic: [13, 13], txt: [21, 11], both: [25, 13] }[o.kind], SX = Math.round(p[0]) - (dims[0] >> 1), SY = Math.round(p[1]) - dims[1] - 4;
+      signPanel(o, pal, SX, SY, false);
+      const lit = document.createElement('canvas'); lit.width = dims[0]; lit.height = dims[1];
+      const keep = ctx; ctx = lit.getContext('2d'); try { signPanel(o, pal, 0, 0, true); } finally { ctx = keep; }
+      fx.bills.push({ x: cx, y: cy, dx: -(dims[0] >> 1), dy: -dims[1] - 4, w: dims[0], h: dims[1], cv: lit, col: pal[o.ci], mode: o.mode, ph: o.ph });
+    }
+  }
+  if (b.trim !== null) {
+    const col = pal[b.trim]; for (let i = 0; i < 4; i++) iline(T[i], T[(i + 1) % 4], col);
+    fx.glow.push({ x: (x0 + x1) / 2, y: y1, z: ht, r: 22, col, a: .3 }, { x: x1, y: (y0 + y1) / 2, z: ht, r: 18, col, a: .25 });
+  }
+}
+
+/* ---------- walls ----------
+   Walls are painted pixel by pixel into the stamp. A wall pixel is addressed as (column along the wall, row above the
+   ground): S for the south wall (left face, columns run west to east), E for the east wall (right face, columns run from
+   the front corner back). Each district has its own facade: Ground Zero concrete with a ledge over the ground floor and
+   a cornice, the Slums brick under a tin edge, the Tower glass ribbons with a lit crown. */
+function wallGeo(b) {
+  const a = isoXY(b.x, b.y + b.h, 0), ax = Math.round(a[0]), ay = Math.round(a[1]), nS = b.w >> 1, nE = b.h >> 1, cx = ax + nS, cy = ay + (nS >> 1);
+  return { ax, ay, cx, cy, nS, nE, nR: Math.round(b.ht * ISO_KZ), S: (i, j) => [ax + i, ay - 1 + ((i + 1) >> 1) - j], E: (i, j) => [cx + i, cy - 1 - ((i + 1) >> 1) - j] };
+}
+// one window: 3 wide, 3 tall, a sill under it. v is the window's own roll, used for variety.
+function winPixels(put, W, side, ic, jc, lit, c, wall, v, glass) {
+  if (glass) {   // Tower: a lit stretch of the glass ribbon, no sill
+    if (lit) for (let k = -2; k <= 2; k++) { put(W(ic + k, jc + 1), c); put(W(ic + k, jc), k === 0 ? shade(c, .82) : c); put(W(ic + k, jc - 1), shade(c, .82)); }
+    return;
+  }
+  if (lit) {
+    const top = v < .3 ? mix(c, wall, .45) : c, low = shade(c, .86);   // some blinds are half down
+    for (let k = -1; k <= 1; k++) { put(W(ic + k, jc + 1), top); put(W(ic + k, jc), c); put(W(ic + k, jc - 1), low); }
+    if (v > .93) put(W(ic, jc - 1), shade(c, .35));                      // somebody at the window
+  } else {
+    const pane = shade(wall, side === 0 ? .55 : .38);
+    for (let k = -1; k <= 1; k++) for (let r = -1; r <= 1; r++) put(W(ic + k, jc + r), pane);
+    if (side === 0) put(W(ic - 1, jc + 1), shade(wall, .8));             // a glint on the glass
+  }
+  for (let k = -1; k <= 1; k++) put(W(ic + k, jc - 2), shade(wall, side === 0 ? 1.2 : .78));   // sill
+}
+const BLD_TAGS = [['#..#.', '#.#.#', '.#..#'], ['.##..', '#..#.', '#.###'], ['#.#.#', '.#.#.', '#...#'], ['##.#.', '#.##.', '#..##']];
+function paintBuilding(b, st) {
+  const x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h, ht = b.ht, d = b.d, wall = b.wall;
+  const pal = neonPal(d), litK = st === 'liberated' ? 1.35 : st === 'dominated' ? .75 : 1;
+  const fx = { flick: [], glow: [], steam: [], bills: [], beacons: [], blades: [] };
+  const g = wallGeo(b), { S, E, nS, nE, nR } = g, cw = ctx.canvas.width, ch = ctx.canvas.height, img = ctx.createImageData(cw, ch), data = img.data;
+  const rr = mulberry(hash2(b.x * 3 + 17, b.y * 5 + 29));
+  const setRGB = (X, Y, c, k) => { if (X < 0 || Y < 0 || X >= cw || Y >= ch) return; const o = (Y * cw + X) * 4; data[o] = Math.min(255, c[0] * k); data[o + 1] = Math.min(255, c[1] * k); data[o + 2] = Math.min(255, c[2] * k); data[o + 3] = 255; };
+  const put = (p, hex) => setRGB(p[0], p[1], rgb(hex), 1);
+  const glassD = side => mix(wall, '#0a1030', side ? .68 : .55);
+  // which rows carry windows (the Tower's glass ribbons follow them)
+  const winRows = new Set(); for (const wn of b.win[2]) if (!(wn.v * ht < 34 || Math.round(wn.v * ht / 15) % 2)) winRows.add(Math.round(wn.v * ht * ISO_KZ));
+  // ---- the bare walls, row by row
+  const floors = new Set(); for (let f = 30; f < ht - 6; f += 30) floors.add(Math.round(f * ISO_KZ));
+  const tin = [rgb('#615c68'), rgb('#3f3b46')];
+  for (let side = 0; side < 2; side++) {
+    const n = side ? nE : nS, W = side ? E : S, base = rgb(shade(wall, side ? .6 : .95)), gl = rgb(glassD(side));
+    for (let j = 0; j <= nR; j++) {
+      let rk = 1, ribbon = false;
+      if (j === 0) rk = side ? .58 : .52;
+      else if (d === 2) { if (winRows.has(j) || winRows.has(j - 1) || winRows.has(j + 1)) ribbon = true; else if (winRows.has(j - 2)) rk = 1.28; else if (j >= nR - 1) rk = 1.4; else if (j <= 6) rk = .82; }
+      else {
+        if (j <= 6) rk = .88; else if (floors.has(j)) rk = side ? .84 : .82;
+        if (d === 0) { if (j === 7) rk = 1.2; if (j >= nR - 1) rk = 1.24; else if (j === nR - 2) rk = .72; }
+        if (d === 1 && j > 0 && !(j & 1)) rk *= .93;
+      }
+      for (let i = 0; i < n; i++) {
+        const p = W(i, j); let k = rk, c = base;
+        if (ribbon) { c = gl; k = (i % 7 === 3) ? 1.7 : 1; }
+        else if (d === 1) { if (j >= nR - 1) { c = tin[i & 1]; k = side ? .75 : 1; } else { const v = hash2((i >> 2) + side * 91 + b.x, (j >> 1) + b.y) % 100; if (v < 9) k *= 1.13; else if (v > 91) k *= .86; } }
+        if (!side && i === n - 1) k *= 1.25; else if (!side && i === 0) k *= .5; else if (side && i === 0) k *= 1.12;
+        setRGB(p[0], p[1], c, k);
+      }
+    }
+  }
+  // ---- windows
+  const glass = d === 2;
+  for (const [ws, list] of [[2, b.win[2]], [1, b.win[1]]]) for (const wn of list) {
+    if (wn.v * ht < 34 || Math.round(wn.v * ht / 15) % 2) continue;
+    const side = ws === 2 ? 0 : 1, W = side ? E : S, n = side ? nE : nS, ic = clamp(Math.round(n * (1 - wn.u) - .5), 2, n - 3), jc = Math.round(wn.v * ht * ISO_KZ);
+    if (jc + 2 > nR - (d === 0 ? 2 : 1)) continue;
+    const on = wn.roll < b.lit * litK, wx = side ? x1 : lerp(x1, x0, wn.u), wy = side ? lerp(y0, y1, wn.u) : y1, wz = wn.v * ht;
+    const lc0 = st === 'dominated' && wn.roll < .1 ? '#ff4a3a' : wn.c, lc = side ? shade(lc0, .8) : lc0, vv = (wn.roll * 7919) % 1;
+    winPixels(put, W, side, ic, jc, on, lc, wall, vv, glass);
+    if (wn.roll > .97) fx.flick.push({ side, ic, jc, u: wn.u, lit: !on, c: lc, v: vv });   // the odd window that switches on and off
+    if (on && wn.roll < .08) fx.glow.push({ x: wx, y: wy, z: wz, r: 6, col: lc0, a: .3 });
+    // an air conditioner hanging under the odd window
+    if (!glass && (hash2(ic + b.x, jc * 7 + b.y + side) % 100) < (d === 1 ? 14 : 7) && jc > 9) { put(W(ic, jc - 3), side ? '#7c8290' : '#aab0bc'); put(W(ic + 1, jc - 3), side ? '#565b68' : '#7c8290'); put(W(ic, jc - 4), shade(wall, side ? .45 : .7)); }
+  }
+  // ---- drainpipes, fire escape
+  if (d !== 2) {
+    for (let j = 1; j < nR - 1; j++) { put(S(2, j), shade(wall, j % 8 === 4 ? .8 : .5)); if (nE > 20) put(E(nE - 3, j), shade(wall, j % 8 === 4 ? .55 : .36)); }
+    if (nS >= 40 && nR >= 18 && (hash2(b.x + 5, b.y + 9) % 3) === 0) {
+      const c0 = 6 + (hash2(b.x, b.y + 3) % Math.max(1, nS - 22)), fl = [...floors].filter(j => j > 7 && j < nR - 4).sort((p, q) => p - q), iron = '#15161d', rail = '#3d414e';
+      fl.forEach((j, k) => {
+        for (let i = 0; i < 11; i++) { put(S(c0 + i, j), iron); if (i % 2 === 0) put(S(c0 + i, j + 1), rail); put(S(c0 + i, j + 2), rail); }
+        if (k < fl.length - 1) { const j2 = fl[k + 1], nn = j2 - j; for (let q = 0; q <= nn; q++) { const i = k % 2 ? 9 - Math.round(q * 8 / nn) : 1 + Math.round(q * 8 / nn); put(S(c0 + i, j + q), iron); } }
+      });
+      if (fl.length) for (let j = 2; j < fl[0]; j += 2) put(S(c0 + 1, j), iron);   // the drop ladder
+    }
+  }
+  // ---- street level: posters and tags on bare stretches of wall
+  const busyS = [], busyE = [];
+  // ---- door
+  if (b.door) {
+    const mc = nS >> 1, dh = clamp(Math.round(Math.min(ht - 4, 28) * ISO_KZ), 4, 7);
+    for (let i = -4; i <= 3; i++) for (let j = 0; j <= dh; j++) put(S(mc + i, j), i === -4 || i === 3 || j === dh ? '#0b0a0d' : j === dh - 1 ? '#fff0c8' : i === -1 || i === 0 ? (j === 0 ? '#8a6a3a' : '#b88f55') : '#e0b878');
+    for (let i = -5; i <= 4; i++) put(S(mc + i, dh + 1), shade(wall, 1.35));           // canopy
+    put(S(mc - 1, 2), '#2a2018'); put(S(mc, 2), '#2a2018');                          // handles
+    busyS.push([mc - 6, mc + 5]);
+    fx.glow.push({ x: (x0 + x1) / 2, y: y1, z: 4, r: 8, col: '#ffd696', a: .5 });
+  }
+  // ---- ground-floor shopfronts: plinth, lit glass with goods, striped awning, sign band
+  for (const sh of b.shops) {
+    if (sh.side !== 2 && sh.side !== 1) continue;
+    const side = sh.side === 2 ? 0 : 1, W = side ? E : S, n = side ? nE : nS, col = pal[sh.ci], dk = side ? .76 : 1;
+    const i0 = clamp(Math.round(n * (1 - sh.u1)), 1, n - 4), i1 = clamp(Math.round(n * (1 - sh.u0)) - 1, i0 + 3, n - 2), doorAt = i0 + 2 + (hash2(b.x + i0, b.y + side) % Math.max(1, i1 - i0 - 4));
+    (side ? busyE : busyS).push([i0 - 1, i1 + 1]);
+    const glassC = shade(mix('#ffe6b0', col, .18), dk);
+    for (let i = i0; i <= i1; i++) {
+      const edge = i === i0 || i === i1, mull = (i - i0) % 5 === 0, door = i === doorAt || i === doorAt + 1;
+      put(W(i, 0), shade(wall, side ? .3 : .4));
+      for (let j = 1; j <= 3; j++) put(W(i, j), edge || (mull && !door) ? '#1c1a20' : door ? (j === 3 ? glassC : shade('#3a3038', dk)) : j === 1 && (hash2(i * 3 + b.x, b.y + side * 5) % 100) < 42 ? shade(glassC, .55) : j === 3 ? shade(glassC, 1.08) : glassC);
+      // awning in the shop's colour with darker stripes, then the neon tube over it: the bright line the street is lit by
+      const stripe = d === 2 || (i - i0) % 3 ? col : shade(col, .62);
+      put(W(i, 4), shade(stripe, dk * .9)); if (d !== 2) put(W(i, 5), shade(stripe, dk * .6));
+      const sj = d === 2 ? 5 : 6, gap = edge || (hash2((i - i0) * 5 + sh.ci, b.x + b.y + side) % 9) === 0;
+      put(W(i, sj), '#121018'); put(W(i, sj + 1), gap ? '#121018' : (i - i0) % 3 === 1 ? '#ffffff' : mix(col, '#ffffff', side ? .25 : .45)); put(W(i, sj + 2), '#121018');
+    }
+    const um = (sh.u0 + sh.u1) / 2; fx.glow.push(side ? { x: x1, y: lerp(y0, y1, um), z: 11, r: 16, col, a: .45 } : { x: lerp(x1, x0, um), y: y1, z: 11, r: 16, col, a: .45 });
+  }
+  // posters and tags where nothing else is
+  if (d !== 2) for (let side = 0; side < 2; side++) {
+    const n = side ? nE : nS, W = side ? E : S, busy = side ? busyE : busyS, clear = (a, c) => !busy.some(q => a <= q[1] && c >= q[0]);
+    for (let i = 5; i < n - 9; i += 9 + ((rr() * 8) | 0)) {
+      if (!clear(i, i + 6)) continue; const roll = rr();
+      if (roll < (d === 1 ? .5 : .25)) { const tg = BLD_TAGS[(rr() * 4) | 0], tc = shade([pal[(rr() * 4) | 0], '#e8ecf4', '#3ac2dc'][(rr() * 3) | 0], side ? .55 : .8); tg.forEach((row, k) => { for (let q = 0; q < row.length; q++) if (row[q] === '#') put(W(i + q, 4 - k), tc); }); }
+      else if (roll < (d === 1 ? .6 : .55)) for (let q = 0; q < 2 + ((rr() * 2) | 0); q++) { const pc = shade(['#e6dcc0', '#d86a7a', '#6aa8d8', '#e0c050'][(rr() * 4) | 0], side ? .5 : .78); for (let a = 0; a < 2; a++) for (let c = 2; c <= 4; c++) put(W(i + q * 3 + a, c), c === 4 ? shade(pc, 1.15) : pc); }
+    }
+  }
+  // ---- backing boards for the horizontal neon signs, boards for the blade signs
+  ctx.putImageData(img, 0, 0);
+  for (const sg of b.signs) {
+    if (sg.side !== 2 && sg.side !== 1) continue;
+    const side = sg.side === 2 ? 0 : 1, W = side ? E : S, n = side ? nE : nS, col = pal[sg.ci];
+    if (sg.u2 !== sg.u) continue;                                                     // horizontal ones are plain tubes, drawn live
+    const ic = clamp(Math.round(n * (1 - sg.u)), 3, n - 4), j1 = Math.min(nR - 2, Math.round(sg.v1 * ht * ISO_KZ)), hh = clamp(j1 - Math.round(sg.v0 * ht * ISO_KZ), 9, 19), cells = Math.floor((hh - 1) / 4), bh = cells * 4 + 1;
+    const p = W(ic, j1), X = p[0] - 2, Y = p[1], seed = mulberry(hash2(b.x + ic * 7, b.y + j1 * 3 + side));
+    const lit = document.createElement('canvas'); lit.width = 5; lit.height = bh; const lg = lit.getContext('2d');
+    ctx.fillStyle = '#07070c'; ctx.fillRect(X - 1, Y - 1, 7, bh + 2); ctx.fillStyle = '#2c2f3a'; ctx.fillRect(X, Y, 5, bh); ctx.fillStyle = '#0e0d12'; ctx.fillRect(X + 1, Y + 1, 3, bh - 2);
+    ctx.fillStyle = '#3a3e4a'; ctx.fillRect(X + (side ? -2 : 5), Y + 1, 2, 1); ctx.fillRect(X + (side ? -2 : 5), Y + bh - 2, 2, 1);   // brackets
+    const tube = mix(col, '#ffffff', .25);
+    for (let c = 0; c < cells; c++) { let bits = (seed() * 512) | 0; if ((bits & 0x1ff) === 0) bits = 0x1b6; for (let q = 0; q < 9; q++) if (bits >> q & 1) { ctx.fillStyle = '#34303a'; ctx.fillRect(X + 1 + q % 3, Y + 1 + c * 4 + (q / 3 | 0), 1, 1); lg.fillStyle = tube; lg.fillRect(1 + q % 3, 1 + c * 4 + (q / 3 | 0), 1, 1); } }
+    fx.blades.push({ side, ic, j1, cv: lit, h: bh, col, blink: sg.blink, ph: sg.ph });
+  }
+  paintRoof(b, st, fx, pal, litK);
+  // the tower's lit corner
+  if (d === 2 && b.trim !== null) { const col = pal[b.trim]; ctx.fillStyle = col; for (let j = 1; j < nR; j++) { const p = S(nS - 1, j); ctx.fillRect(p[0], p[1], 1, 1); } fx.glow.push({ x: x1, y: y1, z: ht * .5, r: 14, col, a: .22 }); }
+  return fx;
+}
+
+/* ---------- stamp + live parts ---------- */
+function drawIsoBuilding(b) {
+  const st = DS[b.d].status, a = isoXY(b.x, b.y + b.h, 0), tp = isoXY(b.x, b.y, b.ht), X = Math.floor(a[0]) - BLD_PADX, Y = Math.floor(tp[1]) - BLD_PADT;
+  if (!b._art || b._art.st !== st) {
+    const cvs = (b._art && b._art.cv) || document.createElement('canvas');
+    cvs.width = Math.ceil((b.w + b.h) * ISO_K) + BLD_PADX * 2 + 1; cvs.height = Math.ceil((b.w + b.h) * ISO_K / 2 + b.ht * ISO_KZ) + BLD_PADT + 3;
+    const keep = ctx, ox = ISO.ox, oy = ISO.oy; ISO.ox -= X; ISO.oy -= Y; ctx = cvs.getContext('2d');
+    let fx; try { fx = paintBuilding(b, st); } finally { ctx = keep; ISO.ox = ox; ISO.oy = oy; }
+    b._art = { st, cv: cvs, fx };
+  }
+  ctx.drawImage(b._art.cv, X, Y);
+  const fx = b._art.fx, t = G.time, pal = neonPal(b.d), x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h, ht = b.ht;
+  const g = fx.flick.length || fx.blades.length ? wallGeo(b) : null, lput = (p, c) => { ctx.fillStyle = c; ctx.fillRect(p[0], p[1], 1, 1); };
+  for (const f of fx.flick) if (Math.sin(t * .7 + f.u * 50) > .6) winPixels(lput, f.side ? g.E : g.S, f.side, f.ic, f.jc, f.lit, f.c, b.wall, f.v, b.d === 2);
+  for (const q of fx.glow) { const p = isoXY(q.x, q.y, q.z); iglow(p[0], p[1], q.r, q.col, q.a); }
+  // neon on the walls: blade signs are stamped lit, horizontal tubes are drawn
+  for (const s of fx.blades) {
+    const on = s.blink ? (Math.sin(t * 3 + s.ph) > -.2 ? 1 : .15) : 1, p = (s.side ? g.E : g.S)(s.ic, s.j1);
+    ctx.globalAlpha = on; ctx.drawImage(s.cv, p[0] - 2, p[1]); ctx.globalAlpha = 1; iglow(p[0] + .5, p[1] + s.h / 2, 6 + s.h * .9, s.col, .5 * on);
+  }
+  for (const sg of b.signs) {
+    if ((sg.side !== 2 && sg.side !== 1) || sg.u2 === sg.u) continue;
+    const on = sg.blink ? (Math.sin(t * 3 + sg.ph) > -.2 ? 1 : .15) : 1, col = pal[sg.ci];
+    const Pt = (u, v) => sg.side === 2 ? isoXY(lerp(x1, x0, u), y1, v * ht) : isoXY(x1, y0 + b.h * u, v * ht);
+    const a2 = Pt(sg.u, sg.v0), c = Pt(sg.u2, sg.v1);
+    iline([a2[0], a2[1] - 1], [c[0], c[1] - 1], '#0e0d12'); iline([a2[0], a2[1] + 2], [c[0], c[1] + 2], '#0e0d12');
+    ctx.globalAlpha = on; iline(a2, c, col); iline([a2[0], a2[1] + 1], [c[0], c[1] + 1], col);
+    const n = Math.max(1, Math.round(Math.hypot(c[0] - a2[0], c[1] - a2[1]) / 3));
+    for (let i = 0; i <= n; i += 2) ipx(lerp(a2[0], c[0], i / n), lerp(a2[1], c[1], i / n), '#ffffff');
+    ctx.globalAlpha = 1; iglow((a2[0] + c[0]) / 2, (a2[1] + c[1]) / 2, 24, col, .55 * on);
+  }
+  // roof: neon signs, beacons, steam
+  for (const s of fx.bills) {
+    const on = s.mode === 0 ? 1 : s.mode === 1 ? (Math.sin(t * 2.2 + s.ph) > -.35 ? 1 : 0) : (Math.sin(t * 1.1 + s.ph) > .9 && Math.sin(t * 37) > 0 ? 0 : 1);
+    if (!on) continue;
+    const p = isoXY(s.x, s.y, ht), SX = Math.round(p[0]) + s.dx, SY = Math.round(p[1]) + s.dy;
+    ctx.drawImage(s.cv, SX, SY); iglow(SX + s.w / 2, SY + s.h / 2, s.w * .9, s.col, .42);
+  }
+  for (const m of fx.beacons) { const on = Math.sin(t * 2.4 + b.x + m.x) > 0, p = isoXY(m.x, m.y, ht), PX = Math.round(p[0]), PY = Math.round(p[1]) - m.hh - 1; ctx.fillStyle = on ? '#ff2a2a' : '#401010'; ctx.fillRect(PX, PY, 1, 2); if (on) iglow(PX + .5, PY + 1, 6, '#ff2a2a', .7); }
+  for (const v of fx.steam) {
+    const p = isoXY(v.x, v.y, ht);
+    for (let k = 0; k < 3; k++) { const f = (t * .45 + k / 3 + v.s) % 1; ctx.fillStyle = `rgba(200,210,228,${(.34 * (1 - f)).toFixed(3)})`; ctx.fillRect(Math.round(p[0] + Math.sin(f * 5 + v.s + k) * 1.5 + f * 3), Math.round(p[1] - 4 - f * 10), f > .5 ? 2 : 1, f > .5 ? 2 : 1); }
+  }
+}
+
+/* ============================== 11h THE EDGE OF THE MAP ============================== */
+/* The city is ringed by roads, so nothing leads off the map; past the outer road there used to be flat black. Now the
+   outer road is a waterfront: a kerb, a quay wall on the two sides that face the camera, and dark water with slow
+   ripples and the odd channel buoy. Nothing here collides or is simulated; it is only drawn. */
+const SEA = { base: '#0b1729', deep: '#081120', kerb: '#4a5163', wallS: '#262b38', wallE: '#1a1e28', rip: '#1d3458', hi: '#3d6399' };
+function seaInView() { return cam.x < 0 || cam.y < 0 || cam.x + cam.w > WORLD_W || cam.y + cam.h > WORLD_H; }
+// ground pass (affine): water under everything, a paler band near the shore, the kerb along the edge of the road
+function drawSea() {
+  if (!seaInView()) return;
+  const x0 = cam.x - 80, y0 = cam.y - 80, w = cam.w + 160, h = cam.h + 160;
+  ctx.fillStyle = SEA.deep; ctx.fillRect(x0, y0, w, h);
+  ctx.fillStyle = SEA.base; ctx.fillRect(-150, -150, WORLD_W + 300, WORLD_H + 300);           // shallower, a touch lighter, near the quay
+  ctx.fillStyle = 'rgba(80,130,200,.06)'; ctx.fillRect(-70, -70, WORLD_W + 140, WORLD_H + 140);
+  ctx.fillStyle = SEA.kerb; ctx.fillRect(-5, -5, WORLD_W + 10, WORLD_H + 10);                 // kerb; the districts' ground is painted over its inside
+}
+// art pass: quay wall faces (south and east only: the other two face away), ripples, buoys
+function drawSeaArt() {
+  if (!seaInView()) return;
+  const t = G.time, D = 14;   // the water lies this far below the street
+  if (cam.y + cam.h > WORLD_H) { const a = isoXY(-5, WORLD_H + 5, 0), b = isoXY(WORLD_W + 5, WORLD_H + 5, 0); ipoly([a, b, [b[0], b[1] + D * ISO_KZ], [a[0], a[1] + D * ISO_KZ]], SEA.wallS); iline([a[0], a[1] + D * ISO_KZ], [b[0], b[1] + D * ISO_KZ], '#2c4a78'); }
+  if (cam.x + cam.w > WORLD_W) { const a = isoXY(WORLD_W + 5, WORLD_H + 5, 0), b = isoXY(WORLD_W + 5, -5, 0); ipoly([a, b, [b[0], b[1] + D * ISO_KZ], [a[0], a[1] + D * ISO_KZ]], SEA.wallE); iline([a[0], a[1] + D * ISO_KZ], [b[0], b[1] + D * ISO_KZ], '#223a60'); }
+  // ripples: one possible dash per 40 px cell of water, each with its own slow rhythm
+  const C = 26, cx0 = Math.floor((cam.x - 40) / C), cx1 = Math.ceil((cam.x + cam.w + 40) / C), cy0 = Math.floor((cam.y - 40) / C), cy1 = Math.ceil((cam.y + cam.h + 40) / C);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    const wx = cx * C, wy = cy * C; if (wx > -14 && wy > -14 && wx < WORLD_W + 14 && wy < WORLD_H + 14) { if (wx > 0 && wy > 0 && wx < WORLD_W && wy < WORLD_H) { cx = Math.max(cx, Math.min(cx1, Math.floor(WORLD_W / C))); } continue; }
+    const hsh = hash2(cx + 9000, cy + 9000), ph = (hsh & 1023) / 1023 * 6.28, s = Math.sin(t * (.5 + ((hsh >> 10) & 7) * .06) + ph);
+    if (s < .1) continue;
+    const p = isoXY(wx + ((hsh >> 13) & 31) * .8, wy + ((hsh >> 18) & 31) * .8, -D), X = Math.round(p[0] + Math.sin(t * .4 + ph) * 2), Y = Math.round(p[1]);
+    if (X < -6 || Y < -2 || X > ART_W + 6 || Y > ART_H + 2) continue;
+    const off = Math.max(-wx, wx - WORLD_W, -wy, wy - WORLD_H), len = 2 + ((hsh >> 23) & 3);   // how far from the quay
+    let c = s > .78 ? SEA.hi : SEA.rip;
+    if (off < 190 && ((hsh >> 26) & 3) === 0) { const d = districtAt(clamp(wx, 1, WORLD_W - 1)); c = mix(SEA.base, neonPal(d)[(hsh >> 28) & 3], (s > .78 ? .75 : .45) * (1 - off / 230)); }   // city lights on the water
+    ctx.fillStyle = c; ctx.fillRect(X, Y, len, 1); if (s > .78 && len > 3) { ctx.fillStyle = SEA.rip; ctx.fillRect(X + 1, Y + 1, len - 1, 1); }
+  }
+  // channel buoys far out: a slow red or green blink
+  const B = 420;
+  for (let by = Math.floor((cam.y - 60) / B); by <= Math.ceil((cam.y + cam.h + 60) / B); by++) for (let bx = Math.floor((cam.x - 60) / B); bx <= Math.ceil((cam.x + cam.w + 60) / B); bx++) {
+    const hsh = hash2(bx + 500, by + 700), wx = bx * B + (hsh & 255), wy = by * B + ((hsh >> 8) & 255);
+    if (wx > -110 && wy > -110 && wx < WORLD_W + 110 && wy < WORLD_H + 110) continue;
+    const p = isoXY(wx, wy, -D), X = Math.round(p[0]), Y = Math.round(p[1]) + (Math.sin(t * 1.3 + hsh) > 0 ? 0 : 1); if (X < -4 || Y < -4 || X > ART_W + 4 || Y > ART_H + 4) continue;
+    const col = hsh & 65536 ? '#ff3b4a' : '#3bff8a', on = Math.sin(t * 1.6 + (hsh & 63)) > .2;
+    ctx.fillStyle = '#0d1118'; ctx.fillRect(X - 1, Y - 1, 3, 2); ctx.fillStyle = '#39404e'; ctx.fillRect(X, Y - 3, 1, 2);
+    ctx.fillStyle = on ? col : shade(col, .25); ctx.fillRect(X, Y - 4, 1, 1); if (on) { iglow(X + .5, Y - 3.5, 5, col, .7); ctx.fillStyle = rgba(col, .35); ctx.fillRect(X, Y + 1, 1, 2); }
+  }
+}
+
+/* ============================== 11i STREET ============================== */
+/* The ground as pixel art. Each city cell (one block plus the road to its west and north) is painted once into a small
+   canvas with the crisp primitives (ipoly, iline) and stamped every frame, like the buildings; only the things that
+   change stay live (boss ring, wet sheen, scorch marks). Every district has its own street: Ground Zero plain asphalt
+   with yellow dashes, the Slums cracked, patched and potholed with worn paint, the Tower clean with lit lane studs and
+   neon kerbs. Also here: street lamps, trees and traffic lights. */
+const GND = new Map(); let _gndCity = null, _gndBudget = 0;
+const GND_PAD = 2, GND_KEEP = 32, GND_PER_FRAME = 3;
+const gR = (x, y, w, h, c) => ipoly([isoXY(x, y, 0), isoXY(x + w, y, 0), isoXY(x + w, y + h, 0), isoXY(x, y + h, 0)], c);
+const gPx = (x, y, c) => { const p = isoXY(x, y, 0); ipx(p[0], p[1], c); };
+
+function paintGroundCell(kx, ky) {
+  const X0 = kx * BAND, Y0 = ky * BAND, X1 = Math.min(X0 + BAND, WORLD_W), Y1 = Math.min(Y0 + BAND, WORLD_H);
+  const rnd = mulberry(hash2(kx * 131 + 7, ky * 197 + 3)), R = (a, b) => a + rnd() * (b - a);
+  for (let q = 0; q < 3; q++) { const a = Math.max(X0, q === 0 ? 0 : DIST_SPLIT[q - 1]), b = Math.min(X1, q === 2 ? WORLD_W : DIST_SPLIT[q]); if (b > a) gR(a, Y0, b - a, Y1 - Y0, DIST[q].ground); }
+  const d = districtAt(Math.min(X0 + 200, WORLD_W - 1)), D_ = DIST[d], g = D_.ground, blk = kx < BCOLS && ky < BROWS ? blocks[ky * BCOLS + kx] : null;
+  const hasV = Y1 - Y0 > 96, hasH = X1 - X0 > 96;                 // does the road run on south / east of the crossing?
+  const onRoad = (x, y) => x > X0 + 2 && y > Y0 + 2 && x < X1 - 2 && y < Y1 - 2 && (x - X0 < 94 || y - Y0 < 94);
+  // ---- asphalt: grain, repair patches, cracks, potholes, manholes
+  for (let i = 0; i < 170; i++) { const x = R(X0, X1), y = R(Y0, Y1); if (onRoad(x, y)) gPx(x, y, shade(g, rnd() < .5 ? 1.32 : .7)); }
+  for (let i = 0, n = [3, 6, 1][d]; i < n; i++) {
+    const along = rnd() < .5, l = R(14, 34), t = R(8, 16), x = along ? R(X0 + 100, X0 + 340) : R(X0 + 6, X0 + 88 - t), y = along ? R(Y0 + 6, Y0 + 88 - t) : R(Y0 + 100, Y0 + 340), w = along ? l : t, h = along ? t : l;
+    if (x + w > X1 - 3 || y + h > Y1 - 3) continue;
+    gR(x, y, w, h, shade(g, d === 1 ? .76 : .84)); gLine(x, y, x + w, y, shade(g, 1.18)); gLine(x, y, x, y + h, shade(g, 1.1));
+  }
+  for (let i = 0, n = [2, 7, 0][d]; i < n; i++) {
+    let x = R(X0 + 6, X1 - 6), y = R(Y0 + 6, Y1 - 6), a = R(0, 6.28);
+    for (let s = 0; s < 6; s++) { const nx = x + Math.cos(a) * R(5, 11), ny = y + Math.sin(a) * R(5, 11); if (!onRoad(x, y) || !onRoad(nx, ny)) break; gLine(x, y, nx, ny, shade(g, .5)); x = nx; y = ny; a += R(-.9, .9); }
+  }
+  if (d === 1) for (let i = 0; i < 3; i++) { const x = R(X0 + 10, X1 - 10), y = R(Y0 + 10, Y1 - 10), r = R(4, 8); if (!onRoad(x - r, y - r) || !onRoad(x + r, y + r)) continue; gDisc(x, y, r, '#09080c'); gDisc(x + 1, y + 1, r * .55, '#1a2230'); gPx(x - 1, y - 1, '#4a5a78'); }
+  for (let i = 0; i < 2; i++) { const along = i === 0, x = along ? R(X0 + 130, X0 + 350) : X0 + (rnd() < .5 ? 24 : 72), y = along ? Y0 + (rnd() < .5 ? 24 : 72) : R(Y0 + 130, Y0 + 350); if (!onRoad(x - 6, y - 6) || !onRoad(x + 6, y + 6)) continue; gDisc(x, y, 5.5, shade(g, 1.75)); gDisc(x, y, 4, shade(g, .9)); gLine(x - 3, y, x + 3, y, shade(g, 1.5)); }
+  // ---- paint: centre dashes and zebra crossings
+  const dashC = d === 2 ? mix(g, '#7affea', .5) : mix(g, '#ffcd6e', d === 1 ? .2 : .36), zebra = mix(g, d === 2 ? '#bfeaff' : '#d7def0', d === 1 ? .13 : .2);
+  if (hasH) for (let x = X0 + 96; x < X1; x += 32) { if (d === 1 && hash2(x, Y0) % 10 < 3) continue; gLine(x + 4, Y0 + 47, x + 20, Y0 + 47, dashC); gLine(x + 4, Y0 + 49, x + 20, Y0 + 49, dashC); if (d === 2) gPx(x + 4, Y0 + 48, '#e8fbff'); }
+  if (hasV) for (let y = Y0 + 96; y < Y1; y += 32) { if (d === 1 && hash2(X0, y) % 10 < 3) continue; gLine(X0 + 47, y + 4, X0 + 47, y + 20, dashC); gLine(X0 + 49, y + 4, X0 + 49, y + 20, dashC); if (d === 2) gPx(X0 + 48, y + 4, '#e8fbff'); }
+  const bar = (x, y, w, h) => { if (x + w > X1 || y + h > Y1) return; if (d === 1 && hash2(x | 0, y | 0) % 10 < 2) return; gR(x, y, w, h, zebra); };
+  for (let i = 0; i < 7; i++) {
+    const o = 8 + i * 12;
+    if (hasV) { bar(X0 + o, Y0 + 100, 6, 20); if (Y0 + BAND < WORLD_H) bar(X0 + o, Y0 + 360, 6, 20); }
+    if (hasH) { bar(X0 + 100, Y0 + o, 20, 6); if (X0 + BAND < WORLD_W) bar(X0 + 360, Y0 + o, 20, 6); }
+  }
+  if (d === 2) {   // lit strips along the kerbs
+    const c = mix(g, D_.col, .42);
+    if (hasH) { gLine(X0 + 100, Y0 + 4, X1 - 4, Y0 + 4, c); gLine(X0 + 100, Y0 + 92, X1 - 4, Y0 + 92, c); }
+    if (hasV) { gLine(X0 + 4, Y0 + 100, X0 + 4, Y1 - 4, c); gLine(X0 + 92, Y0 + 100, X0 + 92, Y1 - 4, c); }
+  }
+  if (!blk) return;
+  // ---- the block: pavement ring, kerb, crossings' warning strips, then whatever is inside
+  const b = blk, side = D_.side, ix = b.x + TILE, iy = b.y + TILE, iw = b.w - TILE * 2;
+  gR(b.x, b.y, b.w, b.h, side);
+  for (let j = 0; j < 18; j++) for (let i = 0; i < 18; i++) {
+    if (i > 1 && i < 16 && j > 1 && j < 16) continue;
+    const v = hash2(b.x + i * 7, b.y + j * 13) % 100, worn = v < (d === 1 ? 20 : 8);
+    if (worn || ((i + j) & 1)) gR(b.x + i * 16, b.y + j * 16, 16, 16, shade(side, worn ? (d === 1 ? .74 : .88) : 1.08));
+  }
+  const seam = shade(side, .68);
+  for (let i = 1; i < 9; i++) { const o = i * TILE; gLine(b.x + o, b.y, b.x + o, b.y + TILE, seam); gLine(b.x + o, b.y + b.h - TILE, b.x + o, b.y + b.h, seam); gLine(b.x, b.y + o, b.x + TILE, b.y + o, seam); gLine(b.x + b.w - TILE, b.y + o, b.x + b.w, b.y + o, seam); }
+  if (d === 1) for (let i = 0; i < 26; i++) { const e = (rnd() * 4) | 0, u = R(4, b.w - 4), v = R(3, 29), x = e < 2 ? b.x + u : (e === 2 ? b.x + v : b.x + b.w - v), y = e < 2 ? (e === 0 ? b.y + v : b.y + b.h - v) : b.y + u; gPx(x, y, rnd() < .4 ? '#2c4a2c' : rnd() < .5 ? '#6a6458' : '#3a3440'); }   // weeds and litter
+  const tact = mix(side, '#e8b830', d === 1 ? .2 : .32);
+  for (const o of [4, 264]) { gR(b.x + o, b.y + 1, 20, 5, tact); gR(b.x + o, b.y + b.h - 6, 20, 5, tact); gR(b.x + 1, b.y + o, 5, 20, tact); gR(b.x + b.w - 6, b.y + o, 5, 20, tact); }
+  const kerb = d === 2 ? mix(side, D_.col, .62) : mix(side, '#bec8e1', d === 1 ? .22 : .36);
+  gLine(b.x, b.y, b.x + b.w, b.y, kerb); gLine(b.x, b.y, b.x, b.y + b.h, kerb); gLine(b.x, b.y + b.h - 1, b.x + b.w, b.y + b.h - 1, kerb); gLine(b.x + b.w - 1, b.y, b.x + b.w - 1, b.y + b.h, kerb);
+  gLine(b.x - 2, b.y + b.h + 2, b.x + b.w + 2, b.y + b.h + 2, shade(g, .55)); gLine(b.x + b.w + 2, b.y - 2, b.x + b.w + 2, b.y + b.h + 2, shade(g, .55));   // gutter shadow on the two near sides
+  for (const [x, y] of [[b.x + 40, b.y - 4], [b.x + b.w - 46, b.y + b.h + 2], [b.x - 5, b.y + b.h - 46], [b.x + b.w + 2, b.y + 40]]) gR(x, y, 6, 3, '#07080b');   // drains
+  const inner = shade(side, .74);
+  gR(ix, iy, iw, iw, inner);
+  if (b.kind === 'park') {
+    const grass = d === 1 ? '#161f15' : d === 2 ? '#0e2a22' : '#10281b', path = side;
+    gR(ix, iy, iw, iw, grass);
+    for (let i = 0; i < 110; i++) { const x = ix + R(2, iw - 2), y = iy + R(2, iw - 2), v = rnd(); gPx(x, y, v < .45 ? shade(grass, 1.45) : v < .8 ? shade(grass, .62) : shade(grass, 1.8)); if (v > .9) gPx(x + 2, y, shade(grass, 1.45)); }
+    if (d === 1) for (let i = 0; i < 6; i++) gDisc(ix + R(14, iw - 14), iy + R(14, iw - 14), R(6, 12), '#1c1712');
+    gR(ix + 3 * TILE, iy, TILE, iw, path); gR(ix, iy + 3 * TILE, iw, TILE, path);
+    const pe = d === 2 ? mix(path, D_.col, .55) : shade(path, 1.3);
+    for (const o of [3 * TILE, 4 * TILE - 1]) for (const [a0, a1] of [[0, 3 * TILE], [4 * TILE, iw]]) { gLine(ix + o, iy + a0, ix + o, iy + a1, pe); gLine(ix + a0, iy + o, ix + a1, iy + o, pe); }
+    for (let i = 1; i < 7; i++) { gLine(ix + 3 * TILE, iy + i * TILE, ix + 4 * TILE, iy + i * TILE, shade(path, .72)); gLine(ix + i * TILE, iy + 3 * TILE, ix + i * TILE, iy + 4 * TILE, shade(path, .72)); }
+    const fl = d === 1 ? ['#8a8460'] : ['#ff8fb8', '#ffe08a', '#e8f0ff', '#9ad0ff'];
+    for (let i = 0; i < (d === 1 ? 6 : 22); i++) { const q = (rnd() * 4) | 0, x = ix + (q & 1 ? 4 * TILE + 3 : 3) + R(0, 3 * TILE - 8), y = iy + (q & 2 ? 4 * TILE + 3 : 3) + R(0, 3 * TILE - 8); gPx(x, y, mix(grass, fl[(rnd() * fl.length) | 0], .8)); }
+  } else if (b.kind === 'hide' || b.kind === 'boss') {
+    gR(ix, iy, iw, iw, D_.plaza);
+    for (let j = 0; j < 7; j++) for (let i = 0; i < 7; i++) if ((i + j) & 1) gR(ix + i * TILE, iy + j * TILE, TILE, TILE, shade(D_.plaza, 1.09));
+    const gl = mix(D_.plaza, '#ffffff', .07); for (let i = 1; i < 7; i++) { gLine(ix + i * TILE, iy, ix + i * TILE, iy + iw, gl); gLine(ix, iy + i * TILE, ix + iw, iy + i * TILE, gl); }
+  } else if (b.kind === 'lot') {
+    const a = '#15161d', wh = mix(a, '#dce2f0', .42); gR(ix, iy, iw, iw, a);
+    for (let i = 0; i < 9; i++) gDisc(ix + R(14, iw - 14), iy + R(10, iw - 10), R(4, 8), shade(a, .72));               // oil stains
+    for (let k = 0; k <= 7; k++) { gLine(ix + k * TILE, iy + 2, ix + k * TILE, iy + 64, wh); gLine(ix + k * TILE, iy + iw - 64, ix + k * TILE, iy + iw - 2, wh); }
+    gLine(ix, iy + 65, ix + iw, iy + 65, wh); gLine(ix, iy + iw - 66, ix + iw, iy + iw - 66, wh);
+    const yl = mix(a, '#ffcd6e', .4); for (let x = ix + 8; x < ix + iw - 14; x += 26) { gLine(x, iy + iw / 2, x + 12, iy + iw / 2, yl); gLine(x + 12, iy + iw / 2, x + 8, iy + iw / 2 - 4, yl); gLine(x + 12, iy + iw / 2, x + 8, iy + iw / 2 + 4, yl); }   // arrows along the aisle
+  } else if (b.kind === 'court') {
+    const cx = ix + iw / 2, cy = iy + iw / 2, floor = '#243a58', ln = mix(floor, '#e6ecfa', .6), key = mix(floor, '#c8503c', .55);
+    gR(ix, iy, iw, iw, '#1c2a3e'); gR(ix + 10, iy + 26, iw - 20, iw - 52, floor);
+    gR(ix + 10, cy - 24, 52, 48, key); gR(ix + iw - 62, cy - 24, 52, 48, key);
+    const box = (x, y, w, h) => { gLine(x, y, x + w, y, ln); gLine(x + w, y, x + w, y + h, ln); gLine(x + w, y + h, x, y + h, ln); gLine(x, y + h, x, y, ln); };
+    box(ix + 10, iy + 26, iw - 20, iw - 52); box(ix + 10, cy - 24, 52, 48); box(ix + iw - 62, cy - 24, 52, 48);
+    gLine(cx, iy + 26, cx, iy + iw - 26, ln); gArc(cx, cy, 24, 0, TAU, ln);
+    gArc(ix + 62, cy, 24, -Math.PI / 2, Math.PI / 2, ln); gArc(ix + iw - 62, cy, 24, Math.PI / 2, Math.PI * 1.5, ln);
+    gArc(ix + 22, cy, 80, -1.15, 1.15, ln); gArc(ix + iw - 22, cy, 80, Math.PI - 1.15, Math.PI + 1.15, ln);
+  } else if (b.kind === 'yard') {
+    const dirt = '#231e1a'; gR(ix, iy, iw, iw, dirt);
+    gR(ix + 96, iy + 120, 8, iw - 120, shade(dirt, .72)); gR(ix + 120, iy + 120, 8, iw - 120, shade(dirt, .72)); gR(ix, iy + 104, iw, 6, shade(dirt, .72));   // tyre tracks
+    for (let i = 0; i < 90; i++) { const x = ix + R(2, iw - 2), y = iy + R(2, iw - 2), v = rnd(); gPx(x, y, v < .5 ? shade(dirt, 1.5) : v < .8 ? shade(dirt, .6) : '#5a5448'); }
+  }
+}
+function groundCell(kx, ky) {
+  const key = kx + ',' + ky; let c = GND.get(key);
+  if (c) return c;
+  if (_gndBudget <= 0) return null; _gndBudget--;
+  const X0 = kx * BAND, Y0 = ky * BAND, X1 = Math.min(X0 + BAND, WORLD_W), Y1 = Math.min(Y0 + BAND, WORLD_H);
+  const cvs = document.createElement('canvas'); cvs.width = (X1 - X0 + Y1 - Y0) * ISO_K + GND_PAD * 2; cvs.height = (X1 - X0 + Y1 - Y0) * ISO_K / 2 + GND_PAD * 2;
+  const keep = ctx, ox = ISO.ox, oy = ISO.oy; ISO.ox = GND_PAD - (X0 - Y1) * ISO_K; ISO.oy = GND_PAD - (X0 + Y0) * ISO_K / 2; ctx = cvs.getContext('2d');
+  try { paintGroundCell(kx, ky); } finally { ctx = keep; ISO.ox = ox; ISO.oy = oy; }
+  c = { cv: cvs, X0, Y0, X1, Y1 }; GND.set(key, c);
+  if (GND.size > GND_KEEP) GND.delete(GND.keys().next().value);
+  return c;
+}
+// called with the ground transform set, and leaves it set
+function drawGround() {
+  drawSea();
+  if (_gndCity !== blocks[0]) { GND.clear(); _gndCity = blocks[0]; }
+  _gndBudget = GND.size ? GND_PER_FRAME : 12;                    // the first screenful all at once, then a few new cells a frame
+  const kx0 = Math.max(0, Math.floor(cam.x / BAND)), kx1 = Math.min(Math.floor((WORLD_W - 1) / BAND), Math.floor((cam.x + cam.w) / BAND)), ky0 = Math.max(0, Math.floor(cam.y / BAND)), ky1 = Math.min(Math.floor((WORLD_H - 1) / BAND), Math.floor((cam.y + cam.h) / BAND));
+  for (let ky = ky0; ky <= ky1; ky++) for (let kx = kx0; kx <= kx1; kx++) {
+    const c = groundCell(kx, ky);
+    if (c) { artT(); const a = isoXY(c.X0, c.Y1, 0), t = isoXY(c.X0, c.Y0, 0); ctx.drawImage(c.cv, a[0] - GND_PAD, t[1] - GND_PAD); groundT(); }
+    else { const X0 = kx * BAND, Y0 = ky * BAND; ctx.fillStyle = DIST[districtAt(Math.min(X0 + 200, WORLD_W - 1))].ground; ctx.fillRect(X0, Y0, Math.min(BAND, WORLD_W - X0), Math.min(BAND, WORLD_H - Y0)); }   // not painted yet: plain road for a frame or two
+  }
+  // live: the boss ring, wet sheen, scorch marks and wrecks
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, WORLD_W, WORLD_H); ctx.clip();
+  for (const b of blocks) {
+    if (b.kind !== 'boss' || b.x > cam.x + cam.w || b.x + b.w < cam.x || b.y > cam.y + cam.h || b.y + b.h < cam.y) continue;
+    const ix = b.x + TILE, iy = b.y + TILE, iw = b.w - TILE * 2;
+    ctx.strokeStyle = rgba(DIST[b.d].col, DS[b.d].bossAlive ? .5 : .16); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ix + iw / 2, iy + iw / 2, iw * .38, 0, TAU); ctx.stroke(); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(ix + iw / 2, iy + iw / 2, iw * .2, 0, TAU); ctx.stroke();
+  }
+  for (const p of puddles) {
+    if (!inView(p.x, p.y, 40)) continue;
+    ctx.fillStyle = 'rgba(110,130,175,.07)'; ellipse(p.x, p.y, p.rx, p.ry);
+    ctx.fillStyle = 'rgba(160,185,235,.05)'; ellipse(p.x - p.rx * .2, p.y - p.ry * .2, p.rx * .55, p.ry * .4);
+  }
+  for (const d of decals) {
+    if (!inView(d.x, d.y, 60)) continue;
+    const a = Math.min(1, d.life / 10);
+    if (d.k === 'scorch') {
+      ctx.fillStyle = `rgba(0,0,0,${.16 * a})`; ellipse(d.x, d.y, d.r * 1.35, d.r * 1.2); ctx.fillStyle = `rgba(0,0,0,${.26 * a})`; ellipse(d.x, d.y, d.r, d.r * .9); ctx.fillStyle = `rgba(0,0,0,${.22 * a})`; ellipse(d.x + d.r * .1, d.y - d.r * .05, d.r * .55, d.r * .5);
+      if (d.r > 40) { ctx.fillStyle = `rgba(70,66,60,${.8 * a})`; for (let i = 0; i < 14; i++) { const h = hash2(d.x | 0, i * 7 + (d.y | 0)), aa = (h % 628) / 100, rr = d.r * ((h >> 10) % 100) / 110; ctx.fillRect(d.x + Math.cos(aa) * rr, d.y + Math.sin(aa) * rr, 3 + (h >> 4) % 6, 2 + (h >> 7) % 4); } }
+    }
+    else if (d.k === 'wreck') { ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.ang || 0); ctx.globalAlpha = a; ctx.fillStyle = '#16171c'; ctx.fillRect(-19, -10, 38, 20); ctx.fillStyle = '#26272e'; ctx.fillRect(-12, -7, 20, 14); ctx.restore(); ctx.globalAlpha = 1; }
+  }
+  ctx.restore();
+}
+
+/* ---------- street lamps: one design per district ---------- */
+// which way a lamp's arm reaches: out over the road next to its kerb (as a step on screen: [dx, dy])
+function lampArm(l) {
+  if (l._arm) return l._arm;
+  const b = blockAt(l.x, l.y), dn = Math.abs(l.y - b.y), ds = Math.abs(l.y - (b.y + b.h)), dw = Math.abs(l.x - b.x), de = Math.abs(l.x - (b.x + b.w)), m = Math.min(dn, ds, dw, de);
+  return l._arm = m === dn ? [1, -1] : m === ds ? [-1, 1] : m === dw ? [-1, -1] : [1, 1];
+}
+function drawIsoLamp(l) {
+  const b = isoXY(l.x, l.y, 0), X = Math.round(b[0]), Y = Math.round(b[1]), c = lampCol(l.d), d = l.d;
+  let k = 1; if (l.broken) k = .05; else if (l.flick) k = Math.sin(G.time * 13 + l.ph) > -.7 ? 1 : .25;
+  const lit = k > .5, px1 = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
+  if (d === 2) {            // Tower: a slim post whose top third is a light bar
+    px1(X - 1, Y - 1, 3, 2, '#14151f'); px1(X, Y - 12, 1, 11, '#3d4058'); px1(X - 1, Y - 13, 3, 1, '#14151f');
+    px1(X - 1, Y - 19, 3, 6, '#14151f'); px1(X, Y - 18, 1, 5, lit ? '#ffffff' : '#3a3d52'); if (lit) { ctx.fillStyle = rgba(c, .75); ctx.fillRect(X - 1, Y - 18, 1, 5); ctx.fillRect(X + 1, Y - 18, 1, 5); }
+    if (k > .2) iglow(X + .5, Y - 15.5, 8, c, .7 * k);
+    return;
+  }
+  const [ax, ay] = lampArm(l), wood = d === 1, pole = wood ? '#5c4232' : '#4c5264', dark = wood ? '#33241b' : '#262a36', top = wood ? 19 : 17;
+  px1(X - 1, Y - 1, 3, 2, dark); px1(X, Y - top, 1, top - 1, pole); px1(X, Y - 3, 1, 2, dark);
+  if (wood) { px1(X - 2, Y - top + 2, 5, 1, dark); px1(X - 2, Y - top + 1, 1, 1, '#8a8478'); px1(X + 2, Y - top + 1, 1, 1, '#8a8478'); }   // cross-arm with insulators
+  // arm: three steps out over the road, then the head hanging from its end
+  const hx = X + ax * 4, hy = Y - top + (ay < 0 ? -2 : 1);
+  iline([X, Y - top], [hx, hy], pole);
+  px1(hx - 1, hy, 3, 1, wood ? '#6a5a4a' : '#727a8e'); px1(hx - 1, hy + 1, 3, 1, lit ? '#fff6d8' : '#5a5040');
+  if (wood && !lit) px1(hx, hy + 1, 1, 1, '#2a2420');
+  if (k > .2) iglow(hx + .5, hy + 2, 7, c, .7 * k);
+}
+
+/* ---------- trees: painted once each into a small canvas ---------- */
+function treeArt(t) {
+  if (t._cv) return t._cv;
+  const d = districtAt(t.x), rnd = mulberry(hash2(Math.round(t.x), Math.round(t.y))), r = Math.round(t.r * ISO_K * .85), trunkH = Math.round(t.h * ISO_KZ) - 1;
+  const bare = d === 1 && rnd() < .35, blossom = d === 2 && rnd() < .55;
+  const leaf = blossom ? ['#3a1c3a', '#5c2a56', '#8e3f7a', '#d766b0', '#ffa6dc'] : d === 1 ? ['#10190f', '#1b2a17', '#27391e', '#35482a', '#4a5c38'] : ['#081a12', '#0f2a1c', '#174028', '#1f5634', '#2f7446'];
+  const W = r * 2 + 8, H = r * 2 + trunkH + 8, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), cx = W >> 1, base = H - 3, cy = base - trunkH - r + 2;
+  const px1 = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  // trunk with a root flare
+  px1(cx - 1, base - trunkH - 2, 3, trunkH + 3, '#0a0806'); px1(cx - 1, base - trunkH - 2, 2, trunkH + 2, '#3a281a'); px1(cx, base - trunkH - 2, 1, trunkH + 2, '#2a1c12'); px1(cx - 2, base, 5, 1, '#0a0806'); px1(cx - 1, base - 1, 3, 1, '#3a281a');
+  if (bare) {               // winter tree: forked branches, a few last leaves
+    const br = (x, y, dx, n, col) => { for (let i = 0; i < n; i++) px1(Math.round(x + dx * i), y - i, 1, 1, col); };
+    const ty = base - trunkH - 2;
+    br(cx - 1, ty, -1, r, '#3a281a'); br(cx + 1, ty, 1, r - 1, '#2a1c12'); br(cx, ty, -.3, r + 2, '#3a281a'); br(cx - 3, ty - 3, -1.2, 4, '#2a1c12'); br(cx + 3, ty - 3, 1.3, 4, '#2a1c12'); br(cx + 1, ty - 4, .4, r - 2, '#3a281a');
+    for (let i = 0; i < 5; i++) px1(cx + ((rnd() * (r * 2 - 2)) | 0) - r + 1, ty - 2 - ((rnd() * r) | 0), 1, 1, '#5a4a2a');
+    return t._cv = { cv, ox: cx, oy: base };
+  }
+  // canopy: a lumpy crown made of overlapping discs, shaded from the upper left, with leaf texture and an outline
+  const lumps = [[0, 0, r]]; for (let i = 0, n = 4 + ((rnd() * 3) | 0); i < n; i++) { const a = rnd() * 6.28, q = r * (.35 + rnd() * .3); lumps.push([Math.cos(a) * q, Math.sin(a) * q * .7, r * (.45 + rnd() * .25)]); }
+  const inside = (x, y) => lumps.some(l => (x - l[0]) ** 2 + ((y - l[1]) * 1.12) ** 2 <= l[2] * l[2]);
+  for (let y = -r - 3; y <= r + 3; y++) for (let x = -r - 3; x <= r + 3; x++) {
+    if (!inside(x, y)) { if (inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)) px1(cx + x, cy + y, 1, 1, '#05070a'); continue; }
+    const lightK = (-x * .6 - y) / r, n = (hash2(x * 7 + 31 + (t.x | 0), y * 13 + (t.y | 0)) % 100) / 100;   // lit from the upper left
+    let tone = lightK > .55 ? 3 : lightK > .1 ? 2 : lightK > -.45 ? 1 : 0;
+    if (n < .14 && tone < 4) tone++; else if (n > .86 && tone > 0) tone--;
+    if (tone === 3 && n > .5 && n < .58) tone = 4;
+    px1(cx + x, cy + y, 1, 1, leaf[tone]);
+  }
+  if (blossom) for (let i = 0; i < 5; i++) px1(cx + ((rnd() * W) | 0) - (W >> 1), base - ((rnd() * 3) | 0), 1, 1, '#b05a96');   // petals on the ground
+  return t._cv = { cv, ox: cx, oy: base, blossom };
+}
+function drawIsoTree(t) {
+  const a = treeArt(t), b = isoXY(t.x, t.y, 0);
+  ctx.drawImage(a.cv, Math.round(b[0]) - a.ox, Math.round(b[1]) - a.oy);
+  if (a.blossom) iglow(b[0], b[1] - t.h * ISO_KZ - 2, 12, '#ff7ac8', .12);
+}
+
+/* ---------- traffic lights: one at the corner of every block (for show; nobody obeys them) ---------- */
+let _signals = null, _sigCity = null;
+function streetSignals() {
+  if (_sigCity === blocks[0] && _signals) return _signals;
+  _sigCity = blocks[0]; _signals = [];
+  for (const b of blocks) _signals.push({ x: b.x + 7, y: b.y + 7, ph: (hash2(b.x, b.y) % 1000) / 1000 * 11, d: b.d });
+  return _signals;
+}
+function drawIsoSignal(s) {
+  const b = isoXY(s.x, s.y, 0), X = Math.round(b[0]), Y = Math.round(b[1]), t = (G.time + s.ph) % 11, on = t < 5 ? 2 : t < 6 ? 1 : 0;   // green 5 s, amber 1 s, red 5 s
+  const px1 = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
+  px1(X - 1, Y - 1, 3, 2, '#1c1f28'); px1(X, Y - 13, 1, 12, '#474c5c');
+  px1(X - 1, Y - 21, 3, 8, '#0b0c11'); px1(X - 2, Y - 20, 1, 6, '#0b0c11'); px1(X + 2, Y - 20, 1, 6, '#0b0c11');
+  const cols = ['#ff3b3b', '#ffb52e', '#39e86b'];
+  for (let i = 0; i < 3; i++) px1(X, Y - 20 + i * 2, 1, 2, i === on ? cols[i] : shade(cols[i], .22));
+  px1(X, Y - 20 + on * 2, 1, 1, '#ffffff'); iglow(X + .5, Y - 19 + on * 2, 5, cols[on], .6);
+}
+
+/* ============================== 11j EFFECTS, SECOND PASS ============================== */
+/* The first pixel pass (11e) made the effects crisp but thin: an explosion was a ring and a smudge, smoke was a blur,
+   pickups were soft dots. This pass gives them body: explosions get a fireball that rises and cools from white through
+   yellow, orange and red into smoke; smoke and dust are chunky puffs that break up as they fade; shockwaves are a
+   dithered band behind a bright edge; the gravity well has spiral arms and light falling in; pickups are small sprites.
+   The sizes that matter for play (blast radius ring, well reach, warning shapes) are unchanged. */
+
+/* ---------- pixel helpers (art space) ---------- */
+function iring(cx, cy, r, col) {   // one-pixel circle
+  ctx.fillStyle = col; cx = Math.round(cx); cy = Math.round(cy); let x = Math.round(r), y = 0, err = 1 - x;
+  while (x >= y) {
+    ctx.fillRect(cx + x, cy + y, 1, 1); ctx.fillRect(cx + y, cy + x, 1, 1); ctx.fillRect(cx - x, cy + y, 1, 1); ctx.fillRect(cx - y, cy + x, 1, 1);
+    ctx.fillRect(cx + x, cy - y, 1, 1); ctx.fillRect(cx + y, cy - x, 1, 1); ctx.fillRect(cx - x, cy - y, 1, 1); ctx.fillRect(cx - y, cy - x, 1, 1);
+    y++; if (err < 0) err += 2 * y + 1; else { x--; err += 2 * (y - x) + 1; }
+  }
+}
+function iarcPx(cx, cy, r, a0, a1, col) { ctx.fillStyle = col; const n = Math.max(2, Math.round(r * Math.abs(a1 - a0) * 1.3)); for (let i = 0; i <= n; i++) { const a = lerp(a0, a1, i / n); ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1); } }
+// filled ellipse; thin: 0 solid, 1 three pixels in four, 2 checkerboard, 3 one pixel in four
+function iblob(cx, cy, rx, ry, col, thin = 0) {
+  ctx.fillStyle = col; cx = Math.round(cx); cy = Math.round(cy); if (thin) ctx.beginPath();   // dithered pixels go into one path and one fill: far cheaper than a call per pixel
+  for (let dy = -Math.ceil(ry); dy <= ry; dy++) {
+    const h = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy * dy) / (ry * ry)))); if (h <= 0) continue;
+    if (!thin) { ctx.fillRect(cx - h, cy + dy, h * 2, 1); continue; }
+    for (let dx = -h; dx < h; dx++) { const e = ((dx + cx) & 1) + ((dy + cy) & 1) * 2; if (thin === 1 ? e !== 0 : thin === 2 ? (e === 0 || e === 3) : e === 0) ctx.rect(cx + dx, cy + dy, 1, 1); }
+  }
+  if (thin) ctx.fill();
+}
+// dithered ring on the ground between two radii
+function gBand(x, y, r0, r1, col) {
+  if (r1 <= 0) return; r0 = Math.max(0, r0);
+  const c = isoXY(x, y, 0), cx = Math.round(c[0]), cy = Math.round(c[1]), ax = r1 * ISO_RX, ay = r1 * ISO_RY, bx = r0 * ISO_RX, by = r0 * ISO_RY; ctx.fillStyle = col; ctx.beginPath();
+  for (let dy = Math.max(-Math.ceil(ay), -cy - 1); dy <= ay && cy + dy <= ART_H; dy++) {
+    const ho = Math.round(ax * Math.sqrt(Math.max(0, 1 - dy * dy / (ay * ay)))), hi = by > 0 && Math.abs(dy) < by ? Math.round(bx * Math.sqrt(Math.max(0, 1 - dy * dy / (by * by)))) : 0;
+    for (let dx = Math.max(-ho, -cx - 1); dx < ho && cx + dx <= ART_W; dx++) { if (dx >= -hi && dx < hi) { dx = hi - 1; continue; } if (((dx + dy + cx + cy) & 1) === 0) ctx.rect(cx + dx, cy + dy, 1, 1); }
+  }
+  ctx.fill();
+}
+// the ground arc from the first pass, with its pixels batched into one fill
+function gArc(x, y, r, a0, a1, col, z = 0) {
+  const n = Math.max(6, Math.round(r * ISO_RX * Math.abs(a1 - a0) * 1.2));
+  ctx.fillStyle = col; ctx.beginPath();
+  for (let i = 0; i <= n; i++) { const a = lerp(a0, a1, i / n), p = isoXY(x + Math.cos(a) * r, y + Math.sin(a) * r, z), X = Math.round(p[0]), Y = Math.round(p[1]); if (X >= -1 && Y >= -1 && X <= ART_W && Y <= ART_H) ctx.rect(X, Y, 1, 1); }
+  ctx.fill();
+}
+// and the dithered ground disc
+function gDither(x, y, r, col) {
+  const c = isoXY(x, y, 0), rx = r * ISO_RX, ry = r * ISO_RY, cx = Math.round(c[0]), cy = Math.round(c[1]); ctx.fillStyle = col; ctx.beginPath();
+  for (let dy = Math.max(-Math.ceil(ry), -cy - 1); dy <= ry && cy + dy <= ART_H; dy++) { const h = Math.round(rx * Math.sqrt(Math.max(0, 1 - dy * dy / (ry * ry)))); for (let dx = Math.max(-h, -cx - 1); dx < h && cx + dx <= ART_W; dx++) if (((dx + dy + cx + cy) & 1) === 0) ctx.rect(cx + dx, cy + dy, 1, 1); }
+  ctx.fill();
+}
+const _pale = c => typeof c === 'string' && c.length === 7 ? mix(c, '#ffffff', .55) : c;
+const FIRE_RAMP = ['#ffffff', '#fff2a8', '#ffc640', '#ff8a24', '#d8421c', '#7a2c22', '#3d3038', '#2a2830'];
+
+/* ---------- particles, bullets, rings, wells ---------- */
+function drawEffects() {
+  const t = G.time;
+  // gravity wells: a dark pit, three arms winding in, sparks of light falling in, the faint rim of its reach
+  for (const w of wells) {
+    const f = Math.min(1, w.t * 2, (w.max - w.t) * 4); if (f <= 0) continue;
+    ctx.globalAlpha = .5 * f; gDither(w.x, w.y, 36, '#1a0038'); ctx.globalAlpha = .75 * f; gDisc(w.x, w.y, 19, '#0d0020');
+    for (let arm = 0; arm < 3; arm++) for (let i = 0; i < 26; i++) {
+      const rad = 9 + i * 2.5, ang = w.a * 1.5 + arm * TAU / 3 - i * .2, p = isoXY(w.x + Math.cos(ang) * rad, w.y + Math.sin(ang) * rad, 0);
+      ctx.globalAlpha = f * (1 - i / 30); ctx.fillStyle = i < 5 ? '#ffffff' : i < 13 ? '#e0c8ff' : '#9a78e0'; ctx.fillRect(Math.round(p[0]), Math.round(p[1]), i < 9 ? 2 : 1, 1);
+    }
+    for (let i = 0; i < 12; i++) {
+      const q = (t * .9 + i * .37 + w.x * .013) % 1, ang = i * 2.4 + w.a * .4, rad = 10 + (w.r - 10) * (1 - q) * .92, p = isoXY(w.x + Math.cos(ang) * rad, w.y + Math.sin(ang) * rad, 0);
+      ctx.globalAlpha = f * Math.min(1, q * 1.6); ctx.fillStyle = q > .7 ? '#ffffff' : '#d8c4ff'; ctx.fillRect(Math.round(p[0]), Math.round(p[1]), 1, 1);
+    }
+    ctx.globalAlpha = .28 * f; gRing(w.x, w.y, w.r, '#c8a8ff');
+    ctx.globalAlpha = f; gDisc(w.x, w.y, 8 * f, '#000000'); gRing(w.x, w.y, 9 * f, '#b090f0');
+    ctx.globalAlpha = 1; const c = isoXY(w.x, w.y, 0); iglow(c[0], c[1], 26, '#8a50ff', .35 * f);
+  }
+  for (const b of bullets) {
+    if (!inView(b.x, b.y, 20)) continue;
+    const a = isoXY(b.x, b.y, 6), c = isoXY(b.x - b.vx * .03, b.y - b.vy * .03, 6);
+    iline(c, a, b.col); ipx(a[0], a[1], '#ffffff');
+    if (b.r > 4) { ipx(a[0] + 1, a[1], b.col); ipx(a[0], a[1] + 1, b.col); }
+    iglow(a[0], a[1], b.r * 2.4, b.col, .6);
+  }
+  // shockwaves: heavy ones are a dithered band behind a bright leading edge
+  for (const r of rings) {
+    const a = Math.max(0, r.life / r.ml), R = Math.max(0, r.r);
+    if (r.w >= 4) { ctx.globalAlpha = a * .5; gBand(r.x, r.y, R - 4 - r.w * 1.8, R - 1, r.col); ctx.globalAlpha = a; gRing(r.x, r.y, R, _pale(r.col)); gRing(r.x, r.y, Math.max(0, R - 1.6), r.col); }
+    else { ctx.globalAlpha = a; gRing(r.x, r.y, R, r.col); if (r.w > 2.5) gRing(r.x, r.y, Math.max(0, R - 3), r.col); }
+  }
+  ctx.globalAlpha = 1;
+  // smoke and dust: round puffs that lift a little, then break up into a dither and are gone
+  for (const p of parts) {
+    if (p.k !== 'm') continue;
+    const smoke = p.g > 2, a = clamp(p.life / p.max, 0, 1), r = p.w * (1 + (1 - a) * (p.g - 1) * .5), v = (p.w * 7.3) % 1;   // v: this puff's own rhythm
+    const c = isoXY(p.x, p.y, (1 - a) * (smoke ? 34 + v * 22 : 8)), rx = clamp(r * (smoke ? .3 : .5), 1, smoke ? 9 : 5), ry = Math.max(1, rx * .82);
+    const k = a + (v - .5) * .22, thin = k > .58 ? 0 : k > .4 ? 1 : k > .2 ? 2 : 3;
+    ctx.globalAlpha = thin ? .85 : .8; iblob(c[0], c[1], rx, ry, p.col, thin);
+    if (thin < 2 && rx >= 3) { ctx.globalAlpha = .7; iblob(c[0] - rx * .25, c[1] - ry * .3, rx * .55, ry * .5, shade(p.col, 1.45), thin); }
+    if (!thin && rx >= 4) { ctx.globalAlpha = .5; iblob(c[0] + rx * .3, c[1] + ry * .35, rx * .5, ry * .4, shade(p.col, .7), 2); }   // shaded underside
+  }
+  ctx.globalAlpha = 1;
+  // fireballs: old cool puffs first, the hot ones on top
+  for (let pass = 0; pass < 2; pass++) for (const p of parts) {
+    if (p.k !== 'f') continue;
+    const u = 1 - clamp(p.life / p.max, 0, 1); if ((u >= .45) !== (pass === 0)) continue;
+    const c = isoXY(p.x, p.y, p.z || 0), grow = u < .12 ? .55 + u / .12 * .45 : 1 - (u - .12) * .45, r = Math.max(1, p.w * grow), i = Math.min(FIRE_RAMP.length - 1, Math.floor(u * FIRE_RAMP.length));
+    if (u > .8) { ctx.globalAlpha = .8; iblob(c[0], c[1], r, r * .85, FIRE_RAMP[i], u > .9 ? 2 : 1); ctx.globalAlpha = 1; continue; }
+    idisc(c[0], c[1], r + 1, FIRE_RAMP[Math.min(FIRE_RAMP.length - 1, i + 2)]);   // darker rim
+    idisc(c[0], c[1], r, FIRE_RAMP[i]);
+    if (i > 0 && r > 2) idisc(c[0] - r * .22, c[1] - r * .28, r * .55, FIRE_RAMP[i - 1]);   // hotter heart, up and to the left
+    if (p.heart && u < .6) iglow(c[0], c[1], r * 4.5, '#ff9a40', .5 * (1 - u));   // one glow for the whole fireball, not one per puff
+  }
+  for (const p of parts) {
+    const a = clamp(p.life / p.max, 0, 1);
+    if (p.k === 's') { ctx.globalAlpha = Math.min(1, a * 1.6); const h = isoXY(p.x, p.y, 4), tl = isoXY(p.x - p.vx * .035, p.y - p.vy * .035, 4); iline(tl, h, p.col); ipx(h[0], h[1], '#ffffff'); }
+    else if (p.k === 'd') { ctx.globalAlpha = a; const h = isoXY(p.x, p.y, 4), s = p.w > 2.2 ? 2 : 1; ctx.fillStyle = p.col; ctx.fillRect(Math.round(h[0]), Math.round(h[1]), s, s); }
+    else if (p.k === 'r') {   // debris: a tumbling chip with a dark underside
+      ctx.globalAlpha = Math.min(1, a * 2); const hop = Math.sin(clamp(1 - a, 0, 1) * Math.PI) * 10, h = isoXY(p.x, p.y, 2 + hop), s = Math.max(1, Math.round(p.w * .6)), turn = Math.floor(p.a * 2) & 1, X = Math.round(h[0]), Y = Math.round(h[1]), w = turn ? s : s + 1, hh = turn ? s + 1 : s;
+      ctx.fillStyle = OUT; ctx.fillRect(X, Y + 1, w, hh); ctx.fillStyle = p.col; ctx.fillRect(X, Y, w, hh); if (s > 1) { ctx.fillStyle = shade(p.col, 1.5); ctx.fillRect(X, Y, 1, 1); }
+    }
+    else if (p.k === 'g') { ctx.globalAlpha = a * .45; gDither(p.x, p.y, p.boss ? 20 : p.sup ? 10 : 9, p.col); }
+  }
+  ctx.globalAlpha = 1;
+  for (const l of dlights) { const c = isoXY(l.x, l.y, 0); iglow(c[0], c[1], l.r * ISO_RX, l.col, l.a * (l.life / l.max)); }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- pickups: small sprites that bob over a shadow ---------- */
+const PICK_ART = {
+  hp: px(`
+    ..ggg..
+    ..gWg..
+    ggGWGgg
+    gWWWWWg
+    ggGWGgg
+    ..gWg..
+    ..ggg..`),
+  en: px(`
+    ...WC
+    ..WC.
+    .WCc.
+    WCCCC
+    .cCC.
+    .CC..
+    CC...
+    c....`),
+  shard: px(`
+    ...w...
+    ..wWc..
+    .wWWcc.
+    .wWccd.
+    wWWccdd
+    wWcccdd
+    .wccdd.
+    .wccdd.
+    ..cdd..
+    ..cd...
+    ...d...`)
+};
+const PICK_PAL = {
+  hp: { g: '#2fbf6a', G: '#5fffa0', W: '#eafff2' },
+  en: { C: '#3ce0ff', c: '#1c9ad0', W: '#f0fdff' },
+  shard: { w: '#ffffff', W: '#c8fff4', c: '#7affea', d: '#2aa890' }
+};
+function drawPickup(p) {
+  artT();
+  const b = isoXY(p.x, p.y, 0), t = G.time, bob = Math.round(Math.sin(t * 4 + p.x) * 1.4), X = Math.round(b[0]), Y = Math.round(b[1]);
+  if (p.type === 'shard') {   // only shows itself when you are close
+    const d = dist(p, P); if (d > 170) return; const a = clamp((170 - d) / 60, 0, 1), c = pxCanvas('pk_shard', PICK_ART.shard, PICK_PAL.shard, '#063a34');
+    ctx.globalAlpha = a * .35; iblob(X, Y, 4, 2, '#000000'); ctx.globalAlpha = a;
+    iglow(X, Y - 8 + bob, 18, '#7affea', .55 * a); ctx.globalAlpha = a; ctx.drawImage(c, X - 4, Y - 15 + bob);
+    const tw = (t * 1.3 + p.x * .01) % 1; if (tw < .22) { const sx = X - 2 + ((p.x | 0) % 3), sy = Y - 12 + bob, s = tw < .11 ? 1 : 2; ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - s, sy, s * 2 + 1, 1); ctx.fillRect(sx, sy - s, 1, s * 2 + 1); }   // a glint
+    ctx.globalAlpha = 1; return;
+  }
+  const hp = p.type === 'hp', c = pxCanvas(hp ? 'pk_hp' : 'pk_en', hp ? PICK_ART.hp : PICK_ART.en, hp ? PICK_PAL.hp : PICK_PAL.en, hp ? '#06301a' : '#062a44'), col = hp ? '#5fffa0' : '#3ce0ff';
+  const fade = p.life < 3 ? (Math.sin(t * 18) > 0 ? 1 : .35) : 1;                      // blinks before it goes
+  ctx.globalAlpha = .35; iblob(X, Y, 3, 1.5, '#000000');
+  iglow(X, Y - 6 + bob, 11, col, .55 * fade); ctx.globalAlpha = fade; ctx.drawImage(c, X - (c.width >> 1), Y - c.height - 1 + bob); ctx.globalAlpha = 1;
+}
+
 /* ============================== 12 HUD ============================== */
 /* Drawn in CSS pixels on top of the world. Every button prompt is drawn with the live glyph for the
    device you last touched (Xbox letters, PlayStation shapes, or keys/mouse). */
@@ -7194,10 +8126,12 @@ function drawHUD(dt) {
   plate(W / 2 - ow / 2 - 4 * hs, oy - 14 * hs, ow + 8 * hs, 28 * hs, NEON.gold, .6, .05);
   ctx.save(); ctx.translate(W / 2 - ow / 2 + 16 * hs, oy); ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.rect(-4 * hs, -4 * hs, 8 * hs, 8 * hs); neonFill(NEON.gold); ctx.restore();
   hudText(ob.text, W / 2 + 8 * hs, oy, 15 * hs, '#e8ecf7', 'center', 600);
-  oy += 34 * hs;
+  oy += 19 * hs;
   for (const t of G.toasts) {
-    const a = Math.min(1, t.life, (t.max - t.life) * 6), sz = (t.big ? 20 : 15) * hs;
-    ctx.globalAlpha = a; if (t.big) glowText(t.text, W / 2, oy, sz, t.col, 'center', 700); else hudText(t.text, W / 2, oy, sz, t.col, 'center', 700); ctx.globalAlpha = 1; oy += sz * 1.45;
+    const a = Math.min(1, t.life, (t.max - t.life) * 6), sz = (t.big ? 20 : 15) * hs, row = sz * 1.5;
+    oy += row / 2; ctx.font = font(sz, 700); const tw = ctx.measureText(t.text).width;
+    ctx.globalAlpha = a * .5; slantPath(W / 2 - tw / 2 - 16 * hs, oy - row / 2 + 1, tw + 32 * hs, row - 2); ctx.fillStyle = '#070912'; ctx.fill();   // readable over bright walls and signs
+    ctx.globalAlpha = a; if (t.big) glowText(t.text, W / 2, oy, sz, t.col, 'center', 700); else hudText(t.text, W / 2, oy, sz, t.col, 'center', 700); ctx.globalAlpha = 1; oy += row / 2;
   }
   // ---- combo
   if (G.combo >= 2 && G.comboT > 0) {
@@ -7244,7 +8178,8 @@ function drawWaypoint() {
     const s = toScreen(t.x, t.y), d = Math.round(dist(t, P) / 10), pad = 46 * hs;
     if (s.x > pad && s.x < W - pad && s.y > pad + 40 * hs && s.y < H - pad) {
       if (d < 18) continue;
-      const y = s.y - 48 * hs + Math.sin(G.time * 4) * 3;
+      const lift = t.kind === 'boss' ? 62 : t.kind === 'hideout' ? 80 : 0;   // tall things: sit above the head / the roof sign
+      const y = (lift ? toScreen(t.x, t.y, lift).y - 14 * hs : s.y - 48 * hs) + Math.sin(G.time * 4) * 3;
       ctx.save(); ctx.translate(s.x, y); ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.rect(-6 * hs, -6 * hs, 12 * hs, 12 * hs); neonFill(col); ctx.restore();
       hudText(d + ' m', s.x, y - 18 * hs, 12 * hs, col, 'center', 700);
     } else {
@@ -7514,17 +8449,19 @@ const UI = (() => {
     { sec: 'Display', k: 'full', name: 'Fullscreen' },
     { sec: 'Display', k: 'hud', name: 'HUD size', min: .7, max: 1.1, step: .1 },
     { sec: 'Display', k: 'shake', name: 'Screen shake' },
+    { sec: 'Display', k: 'see', name: 'Hero behind buildings', opts: [[0, 'Hidden'], [1, 'Outline'], [2, 'Window'], [3, 'See-through wall']] },
     { sec: 'Controls', k: 'rumble', name: 'Controller rumble' },
     { sec: 'Controls', k: 'deadzone', name: 'Stick dead zone', min: .1, max: .35, step: .05 },
     { sec: 'Controls', k: 'assist', name: 'Aim assist', opts: [[0, 'Off'], [.5, 'Low'], [1, 'Normal'], [1.5, 'High']] },
     { sec: 'Save', k: 'wipe', name: 'Delete saved game', titleOnly: true, warn: true }
   ];
   let wipeArm = false;
+  const k0 = o => 2;   // which option an unknown stored value falls back to (Normal aim assist, Window)
   function setLabel(o) {
     if (o.k === 'full') return document.fullscreenElement ? 'On' : 'Off';
     if (o.k === 'wipe') return wipeArm ? 'Press again to delete' : 'Delete';
     const v = SETTINGS[o.k];
-    if (o.opts) return (o.opts.find(p => Math.abs(p[0] - v) < 1e-6) || o.opts[2])[1];
+    if (o.opts) return (o.opts.find(p => Math.abs(p[0] - v) < 1e-6) || o.opts[k0(o)])[1];
     return o.step ? Math.round(v * 100) + '%' : v ? 'On' : 'Off';
   }
   function adjustSetting(k, d, wrap) {
@@ -7536,12 +8473,12 @@ const UI = (() => {
       if (!wipeArm) wipeArm = true; else { wipeArm = false; try { localStorage.removeItem(SAVE_KEY); } catch (e) { } $('bCont').disabled = true; }
       sfx('ui'); renderTab(loadSave() ? k : null); return;
     }
-    if (o.opts) { let i = o.opts.findIndex(p => Math.abs(p[0] - SETTINGS[k]) < 1e-6); if (i < 0) i = 2; i += d; SETTINGS[k] = o.opts[wrap ? (i + o.opts.length) % o.opts.length : clamp(i, 0, o.opts.length - 1)][0]; }
+    if (o.opts) { let i = o.opts.findIndex(p => Math.abs(p[0] - SETTINGS[k]) < 1e-6); if (i < 0) i = k0(o); i += d; SETTINGS[k] = o.opts[wrap ? (i + o.opts.length) % o.opts.length : clamp(i, 0, o.opts.length - 1)][0]; }
     else if (o.step) { let v = Math.round((SETTINGS[k] + d * o.step) * 100) / 100; if (wrap && v > o.max + 1e-6) v = o.min; SETTINGS[k] = clamp(v, o.min, o.max); if (k === 'music' || k === 'sfx') Audio2.applyVolumes(); }
     else { SETTINGS[k] = !SETTINGS[k]; if (k === 'rumble' && SETTINGS.rumble) Input.rumble(.6, .6, 200); }
     saveSettings(); sfx('ui'); renderTab(k);
   }
-  async function toggleFull() { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (e) { } }
+  async function toggleFull() { const on = !document.fullscreenElement; SETTINGS.full = on; saveSettings(); try { if (on) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (e) { } }   // the choice is kept: off stays off the next time a game starts
   document.addEventListener('fullscreenchange', () => { if (layer === 'pause' && tab === 'settings') renderTab(focus && focus.dataset.k); });
 
   /* ---------- title actions ---------- */
@@ -7550,8 +8487,13 @@ const UI = (() => {
   function toTitle() { saveGame(); hide('pause'); Audio2.humStop(); G.mode = 'title'; show('title'); $('bCont').disabled = !loadSave(); setFocus($('bNew')); }
   $('bNew').onclick = startNew; $('bCont').onclick = continueGame; $('bCtl').onclick = () => openPause(true); $('bSet').onclick = () => openPause('settings');
   $('bResume').onclick = closePause; $('bQuit').onclick = toTitle;
-  const goFull = async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch (e) { } };
+  const goFull = async () => { if (!SETTINGS.full) return; try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch (e) { } };
   $('bNew').addEventListener('click', goFull); $('bCont').addEventListener('click', goFull);
+  // alt-tab, another tab, or the controller going away mid-game: pause instead of letting the fight run on unattended
+  const autoPause = () => { if ((G.mode === 'play' || G.mode === 'dead') && layer !== 'pause') openPause(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
+  addEventListener('blur', autoPause);
+  addEventListener('gamepaddisconnected', () => { if (Input.device === 'pad') autoPause(); });
 
   /* ---------- per-frame ---------- */
   function update(dt) {
@@ -7590,7 +8532,7 @@ const say = UI.say;
 
 /* ============================== 14 MAIN LOOP & DEBUG HOOKS ============================== */
 function updateFX(dt) {
-  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; const f = p.k === 'm' ? .97 : p.k === 's' ? .9 : .94; p.vx *= f; p.vy *= f; if (p.k === 'r') p.a += p.va * dt; p.life -= dt; }
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; const f = p.k === 'm' ? .97 : p.k === 's' ? .9 : .94; p.vx *= f; p.vy *= f; if (p.k === 'r') p.a += p.va * dt; else if (p.k === 'f') { p.z += p.vz * dt; p.vz *= .95; } p.life -= dt; }
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
   if (parts.length > 900) parts.splice(0, parts.length - 900);
   for (const t of texts) t.life -= dt; for (let i = texts.length - 1; i >= 0; i--) if (texts[i].life <= 0) texts.splice(i, 1);
@@ -7660,7 +8602,7 @@ window.KC = {
     drawMinimapBase(); const c = checkpointFor(d); P.x = c.x; P.y = c.y; DS[d].intro = true; snapCamera();
   },
   costume(n) { if (HERO_COSTUMES[n]) heroCostume = n; return heroCostume; },
-  see(n) { if (n !== undefined) SEE = n; return SEE; },   // how the hero shows behind buildings: 0 hidden, 1 silhouette, 2 window, 3 see-through wall
+  see(n) { if (n !== undefined) SETTINGS.see = n; return SETTINGS.see; },   // how the hero shows behind buildings: 0 hidden, 1 silhouette, 2 window, 3 see-through wall
   spawn: mk, spawnGang, spawnBoss, render, drawHUD, snapCamera, hurt, kill, explosion
 };
 
