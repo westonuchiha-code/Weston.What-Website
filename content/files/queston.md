@@ -1,7 +1,6 @@
 ---
 title: Queston
-file: Queston.apk
-external: https://raw.githubusercontent.com/westonuchiha-code/weston.what-website/main/big-downloads/Queston.apk
+file: Queston.zip
 kind: Android app
 platform: Android
 date: 2026-11-15

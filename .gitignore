@@ -9,7 +9,9 @@ Thumbs.db
 .wrangler/
 
 # private: never publish these (the repo is public)
-content/downloads/
+content/downloads/*
 content/download-password.txt
 .zip-version
 *.zip
+# open downloads that are meant to be public
+!content/downloads/Queston.zip

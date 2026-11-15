@@ -432,7 +432,7 @@ export function aboutPage(ctx, a) {
       ${f.html ? `<div class="prose">${f.html}</div>` : ''}
       <p class="download__actions">${f.locked
         ? `<button class="btn" type="button" data-dl="${e(ctx.href(f.url))}" data-name="${e(f.name)}">DOWNLOAD ${e(f.name)}</button>`
-        : `<a class="btn" href="${f.external ? e(f.url) : ctx.href(f.url)}" download>DOWNLOAD ${e(f.name)}</a>`}</p>` });
+        : `<a class="btn" href="${ctx.href(f.url)}" download>DOWNLOAD ${e(f.name)}</a>`}</p>` });
   };
   const lockedFiles = a.downloads.filter((f) => f.locked), openFiles = a.downloads.filter((f) => !f.locked);
   const folder = (name, iconName, inner, open) => `<details class="folder"${open ? ' open' : ''}>
