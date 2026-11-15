@@ -817,3 +817,5 @@ html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transitio
 .buttons .btn88 { transition: transform .1s; }
 .buttons a:hover .btn88 { transform: translateY(-2px); }
 .buttons li { line-height: 0; }
+
+.files-list--open { margin-bottom: 18px; }

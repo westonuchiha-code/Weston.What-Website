@@ -211,6 +211,17 @@ export function build() {
     if (!data.title) fail(`content/files/${f} has no title.`);
     const name = String(data.file || '').trim().replace(/^\/?downloads\//, '');
     if (!name || name.includes('/') || name.includes('..')) fail(`content/files/${f}: "file:" must be just a file name, like  my-save.sav  (the file goes in content/downloads/).`);
+    // Files over Cloudflare's 25 MB limit live in big-downloads/ (in the repo, not on the site) and the
+    // page links to GitHub's copy. Add  external: <url>  to the file's page to use this.
+    if (data.external) {
+      const bigPath = path.join(ROOT, 'big-downloads', name);
+      const size = exists(bigPath) ? fs.statSync(bigPath).size : Number(data.size || 0);
+      return {
+        file: f, slug: slugify(data.slug || f.replace(/\.md$/, '')), title: String(data.title), url: String(data.external), external: true, name, size, locked: false,
+        game: data.game ? String(data.game) : '', kind: data.kind ? String(data.kind) : '', date: data.date ? String(data.date).slice(0, 10) : '',
+        emulator: data.emulator ? String(data.emulator) : '', platform: data.platform ? String(data.platform) : '', description: data.description ? String(data.description) : '', body, order: Number(data.order ?? 999),
+      };
+    }
     const full = path.join(CONTENT, 'downloads', name);
     // Locked files are kept in the repo already encrypted (content/downloads-encrypted/), so the raw
     // save files and the password never have to be published. If the raw file is here, we re-encrypt from it.

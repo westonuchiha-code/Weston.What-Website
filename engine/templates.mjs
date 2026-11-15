@@ -432,7 +432,7 @@ export function aboutPage(ctx, a) {
       ${f.html ? `<div class="prose">${f.html}</div>` : ''}
       <p class="download__actions">${f.locked
         ? `<button class="btn" type="button" data-dl="${e(ctx.href(f.url))}" data-name="${e(f.name)}">DOWNLOAD ${e(f.name)}</button>`
-        : `<a class="btn" href="${ctx.href(f.url)}" download>DOWNLOAD ${e(f.name)}</a>`}</p>` });
+        : `<a class="btn" href="${f.external ? e(f.url) : ctx.href(f.url)}" download>DOWNLOAD ${e(f.name)}</a>`}</p>` });
   };
   const lockedFiles = a.downloads.filter((f) => f.locked), openFiles = a.downloads.filter((f) => !f.locked);
   const folder = (name, iconName, inner, open) => `<details class="folder"${open ? ' open' : ''}>
@@ -447,9 +447,10 @@ export function aboutPage(ctx, a) {
     <noscript><p>This needs JavaScript to unlock the files.</p></noscript>
   </div>
 </form>`;
+  // Open downloads are listed first, as plain files. The password-protected save files sit below in a folder.
   const folders = [
+    openFiles.length ? `<div class="files-list files-list--open">${openFiles.map(item).join('\n')}</div>` : '',
     lockedFiles.length ? folder('SAVE FILES', 'lock', `${form}<div class="files-list">${lockedFiles.map(item).join('\n')}</div>`, false) : '',
-    openFiles.length ? folder('DOWNLOADS', 'folder', `<div class="files-list">${openFiles.map(item).join('\n')}</div>`, true) : '',
   ].join('\n');
   const body = `${pageHead('FILES')}
 ${a.intro ? `<div class="prose files-intro">${a.intro}</div>` : ''}
