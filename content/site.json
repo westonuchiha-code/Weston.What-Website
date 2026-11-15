@@ -164,6 +164,10 @@
       "img": "/img/buttons/b-diz-best-cat.gif",
       "alt": "D.I.Z., best cat",
       "href": "/photos/diz/"
+    },
+    {
+      "img": "/img/buttons/b-ratking.gif",
+      "alt": "RatKing"
     }
   ],
   "photos": {
