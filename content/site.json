@@ -86,7 +86,8 @@
     },
     {
       "img": "/img/buttons/b-sunglasses-cat.gif",
-      "alt": "Manga face with sunglasses"
+      "alt": "My MyAnimeList profile",
+      "href": "https://myanimelist.net/profile/DoumoDude"
     },
     {
       "img": "/img/buttons/b-viewed-1024x768.gif",
