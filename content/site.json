@@ -91,7 +91,8 @@
     },
     {
       "img": "/img/buttons/b-viewed-1024x768.gif",
-      "alt": "Viewed in 1024x768, 16 bit color"
+      "alt": "Viewed in 1024x768, 16 bit color",
+      "href": "/chiptune/"
     },
     {
       "img": "/img/buttons/b-blizzard.gif",

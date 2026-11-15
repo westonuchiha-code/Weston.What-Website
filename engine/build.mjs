@@ -389,6 +389,10 @@ ${pages.map((p) => `  <url><loc>${base}${p}</loc></url>`).join('\n')}
 /games/*
   ! Content-Security-Policy
 
+# The hidden Chiptune Pad Studio page is a self-contained app with inline scripts.
+/chiptune/*
+  ! Content-Security-Policy
+
 # Save files and other downloads: always save to the device, never open in the browser.
 /downloads/*
   Content-Type: application/octet-stream
