@@ -15,3 +15,6 @@ content/download-password.txt
 *.zip
 # open downloads that are meant to be public
 !content/downloads/Queston.zip
+
+!content/downloads/SlimePet-Setup-0.1.0.exe
+!content/downloads/SlimePet-0.1.0-portable.zip
