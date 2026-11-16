@@ -1,5 +1,7 @@
 ---
-title: SlimePet (portable zip)
+title: SlimePet
+group: slimepet
+label: PORTABLE (.zip)
 file: SlimePet-0.1.0-portable.zip
 kind: Windows desktop pet, UNSIGNED
 platform: Windows

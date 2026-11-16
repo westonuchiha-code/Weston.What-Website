@@ -430,9 +430,10 @@ export function aboutPage(ctx, a) {
       <dl class="entry__facts">${facts}</dl>
       ${f.description ? `<p>${e(f.description)}</p>` : ''}
       ${f.html ? `<div class="prose">${f.html}</div>` : ''}
-      <p class="download__actions">${f.locked
-        ? `<button class="btn" type="button" data-dl="${e(ctx.href(f.url))}" data-name="${e(f.name)}">DOWNLOAD ${e(f.name)}</button>`
-        : `<a class="btn" href="${ctx.href(f.url)}" download>DOWNLOAD ${e(f.name)}</a>`}</p>` });
+      <p class="download__actions">${[f, ...(f.more || [])].map((x) => x.locked
+        ? `<button class="btn" type="button" data-dl="${e(ctx.href(x.url))}" data-name="${e(x.name)}">DOWNLOAD ${e(x.label || x.name)}</button>`
+        : `<a class="btn" href="${ctx.href(x.url)}" download>DOWNLOAD ${e(x.label || x.name)}</a>`).join(' ')}</p>
+      ${f.more && f.more.length ? `<ul class="download__files">${[f, ...f.more].map((x) => `<li>${e(x.name)} (${bytes(x.size)} bytes)</li>`).join('')}</ul>` : ''}` });
   };
   const lockedFiles = a.downloads.filter((f) => f.locked), openFiles = a.downloads.filter((f) => !f.locked);
   const folder = (name, iconName, inner, open) => `<details class="folder"${open ? ' open' : ''}>
