@@ -161,7 +161,8 @@
     },
     {
       "img": "/img/buttons/b-amiga-friendly.gif",
-      "alt": "Amiga friendly"
+      "alt": "Amiga friendly",
+      "href": "/chipcrusher/"
     },
     {
       "img": "/img/buttons/b-small-icon.gif",

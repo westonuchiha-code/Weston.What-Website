@@ -400,6 +400,10 @@ ${pages.map((p) => `  <url><loc>${base}${p}</loc></url>`).join('\n')}
 /chiptune/*
   ! Content-Security-Policy
 
+# Same for the hidden Chip Crusher app.
+/chipcrusher/*
+  ! Content-Security-Policy
+
 # Save files and other downloads: always save to the device, never open in the browser.
 /downloads/*
   Content-Type: application/octet-stream
