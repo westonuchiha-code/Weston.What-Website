@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Kinetic City</title>
+<title>Gravitation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Tilt+Neon&family=Bungee&display=swap" rel="stylesheet">
 <style>
 /* Layout idea: full-bleed game canvas; DOM overlays sit on top as left-anchored neon panels. Single dark theme by design. */
 :root{
@@ -165,13 +165,29 @@ button{font-family:inherit;color:inherit}
   .pwrap{padding:10px 20px 8px;gap:8px}.phead{padding-bottom:6px}.ptitle{font-size:24px}.tab{padding:4px 12px;font-size:13px}.pfoot{padding-top:6px}.pbtn{padding:6px 14px;font-size:13px}
   .ctl{gap:20px}.ctl h3{margin-bottom:5px;font-size:12px}.ctl ul{gap:2px}.ctl li{font-size:12.5px;gap:8px}.ctl li .k{min-width:60px}}
 @media (prefers-reduced-motion:reduce){.logo span{animation:none}}
+/* ---------- title screen: the ordinary-city look (painted signs, no neon). Overrides the neon theme above for the title only. ---------- */
+#title{background:linear-gradient(90deg,rgba(24,16,18,.9) 0%,rgba(24,16,18,.6) 40%,rgba(24,16,18,0) 72%)}
+#title::after{display:none}
+.logo{font-family:"Bungee","Impact","Arial Black",var(--font-body);font-size:clamp(30px,min(7.4vw,12vh),104px);line-height:1;letter-spacing:.01em;color:#f6e7c1;animation:none;
+  text-shadow:.045em .045em 0 #b8412c,.09em .09em 0 #2a1614,0 0 0 transparent;-webkit-text-stroke:.02em #2a1614}
+.logo span{display:inline;color:inherit;text-shadow:inherit;animation:none}
+#tmenu{margin-top:26px;gap:9px;padding-top:20px}
+#tmenu::before{height:4px;border-radius:0;width:min(380px,60vw);background:#f6e7c1;box-shadow:3px 3px 0 #2a1614}
+#title .mbtn{font-family:"Bungee","Impact","Arial Black",var(--font-body);font-weight:400;letter-spacing:.04em;min-width:min(300px,70vw);transform:none;border:3px solid #f6e7c1;border-radius:5px;padding:8px 20px;
+  color:#f6e7c1;background:#1f6b4a;text-shadow:none;box-shadow:4px 4px 0 #2a1614;transition:transform .1s,background .1s,color .1s}
+#title .mbtn:nth-child(n){--c:#e0b040}
+#title .mbtn:hover,#title .mbtn.focus{color:#2a1614;background:#e0b040;border-color:#f6e7c1;transform:translate(10px,0);text-shadow:none;box-shadow:4px 4px 0 #2a1614}
+#title .mbtn.focus::before{left:-22px;width:0;height:0;margin-top:-8px;background:none;transform:none;box-shadow:none;border:8px solid transparent;border-left:11px solid #f6e7c1}
+#title .mbtn[disabled]{opacity:.5;background:#4a4a4a;box-shadow:4px 4px 0 #2a1614}
+#title .padstat{color:#e8dcc0;text-shadow:1px 1px 0 #2a1614}
+#title .padstat.ok .dot{background:#6fd08a;box-shadow:none}#title .padstat.warn .dot{box-shadow:none}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 
 <div id="title" class="layer on">
-  <h1 class="logo">KINETIC<span>CITY</span></h1>
+  <h1 class="logo">GRAVITATION</h1>
   <div class="menu" id="tmenu">
     <button class="mbtn nav" id="bNew">New game</button>
     <button class="mbtn nav" id="bCont">Continue</button>
@@ -214,7 +230,7 @@ button{font-family:inherit;color:inherit}
 <script>
 'use strict';
 /* =====================================================================================
-   KINETIC CITY  -  rebuilt, controller-first
+   GRAVITATION  -  rebuilt, controller-first
    -------------------------------------------------------------------------------------
    One HTML file, no dependencies, Canvas 2D. Built from the original prototype's design:
    physics-as-damage, five force powers, karma with visible consequences, three districts
@@ -301,9 +317,10 @@ function rgba(h, a) { const A = rgb(h); return `rgba(${A[0]},${A[1]},${A[2]},${a
    Controller layout (standard mapping):
      LS move  RS aim  RT telekinesis (hold grab, release throw)  LT absorb (hold, release = blast)
      RB repulse  LB gravity well  A dash  X heal (hold)  Y drain (hold)  B drop  Start pause  Back map */
-const SETTINGS = { music: .6, sfx: .8, rumble: true, shake: true, deadzone: .18, assist: 1, hud: 1, see: 2, full: true, sv: 2, costume: 'raincoat', binds: { key: {}, pad: {} } };   // deadzone: left stick (right stick +.04); assist: aim-assist cone multiplier; hud: HUD scale; see: how the hero shows behind buildings; full: go fullscreen when a game starts
-try { const s = JSON.parse(localStorage.getItem('kc_settings') || 'null'); if (s) { Object.assign(SETTINGS, s); if (s.sv !== 2) { SETTINGS.see = 2; SETTINGS.sv = 2; } } } catch (e) { }   // sv 2: the hero shows through a window in the wall by default (settings saved before that are moved over once)
-function saveSettings() { try { localStorage.setItem('kc_settings', JSON.stringify(SETTINGS)); } catch (e) { } }
+const SETTINGS = { music: .6, sfx: .8, rumble: true, shake: true, deadzone: .18, assist: 1, hud: 1, see: 2, time: 'sunset', full: true, sv: 2, costume: 'raincoat', binds: { key: {}, pad: {} } };   // deadzone: left stick (right stick +.04); assist: aim-assist cone multiplier; hud: HUD scale; see: how the hero shows behind buildings; full: go fullscreen when a game starts
+try { for (const [o, n] of [['kc_settings', 'grav_settings'], ['kc_costumes', 'grav_costumes'], ['kinetic_city_v2', 'gravitation_v2']]) { const v = localStorage.getItem(o); if (v !== null) { if (localStorage.getItem(n) === null) localStorage.setItem(n, v); localStorage.removeItem(o); } } } catch (e) { }   // one-time move of settings, costumes and the save from the game's old working title
+try { const s = JSON.parse(localStorage.getItem('grav_settings') || 'null'); if (s) { Object.assign(SETTINGS, s); if (s.sv !== 2) { SETTINGS.see = 2; SETTINGS.sv = 2; } } } catch (e) { }   // sv 2: the hero shows through a window in the wall by default (settings saved before that are moved over once)
+function saveSettings() { try { localStorage.setItem('grav_settings', JSON.stringify(SETTINGS)); } catch (e) { } }
 
 const Input = (() => {
   const KEYMAP = {
@@ -610,12 +627,14 @@ const Audio2 = (() => {
   const PROG = [[62, 65, 69, 38], [58, 62, 65, 34], [55, 58, 62, 31], [57, 61, 64, 33]];
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
   let nextT = 0, step = 0;
+  let rainGain = null, rainK = 1;
+  function setRain(k) { rainK = k; if (rainGain) rainGain.gain.value = .045 * k; }   // the rain hiss follows the weather
   function startAmbience() {
     if (!ac || started) return; started = true;
     const rain = ac.createBufferSource(); rain.buffer = noiseBuf; rain.loop = true;
     const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7000;
-    const g = ac.createGain(); g.gain.value = .045; rain.connect(hp); hp.connect(lp); lp.connect(g); g.connect(sfxBus); rain.start();
+    const g = ac.createGain(); g.gain.value = .045 * rainK; rainGain = g; rain.connect(hp); hp.connect(lp); lp.connect(g); g.connect(sfxBus); rain.start();
     const rum = ac.createBufferSource(); rum.buffer = noiseBuf; rum.loop = true; rum.playbackRate.value = .5;
     const lp2 = ac.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 160;
     const g2 = ac.createGain(); g2.gain.value = .05; rum.connect(lp2); lp2.connect(g2); g2.connect(sfxBus); rum.start();
@@ -670,7 +689,7 @@ const Audio2 = (() => {
     h.o.stop(t + .15); h.o2.stop(t + .15);
   }
   return {
-    unlock, sfx, startAmbience, applyVolumes, humStart, humSet, humStop,
+    unlock, sfx, startAmbience, setRain, applyVolumes, humStart, humSet, humStop,
     setIntensity(v) { targetI = clamp(v, 0, 1); },
     get ready() { return !!ac; }
   };
@@ -702,7 +721,7 @@ const DIST = [
   { name: 'THE TOWER', gang: 'ARCHITECTS', boss: 'THE ARCHITECT', col: '#b06bff', neon: ['#b26bff', '#5ab4ff', '#ff6bf1', '#7affea'], lamp: '#cfe0ff',
     roof: ['#2a2846', '#312e54', '#25233e', '#3a3768'], wall: '#433f72', ground: '#100f1a', side: '#1c1b2a', plaza: '#1a1928', ht: [110, 240], lit: .45 }
 ];
-const NEON_GOOD = ['#3ce0ff', '#6bffd6', '#9fdcff', '#58a6ff'], NEON_EVIL = ['#ff2a4a', '#ff5a2a', '#d0143c', '#ff3d8b'];
+const NEON_GOOD = ['#c8452e', '#2e7a5a', '#e0b040', '#3a6aa8'], NEON_EVIL = ['#a83228', '#7a2e2a', '#b8642a', '#6a3038'];   // not neon any more: painted shop signs (red, green, mustard, blue), and all reds where a district is dominated
 // per district: block (column within the district, row) of each hideout, the boss arena and the parks
 const LAYOUT = [
   { hide: [[0, 1], [3, 2], [1, 5]], boss: [2, 3], parks: [[2, 0], [0, 3], [3, 5], [2, 6]], open: [[3, 0, 'lot'], [1, 3, 'court'], [2, 4, 'yard'], [0, 6, 'lot']] },
@@ -961,6 +980,65 @@ function drawMinimapBase() {
 function openGate(i) {
   for (let ty = 0; ty < MAP_H; ty++) map[ty * MAP_W + GATE_TX[i]] = T.ROAD;
   flowSrc = -1; drawMinimapBase();
+}
+
+/* ============================== 04b TIME OF DAY ============================== */
+/* The city is an ordinary one now (brick and brownstone, plain street lamps, painted shop signs), and it comes in three
+   times of day. A time of day is ONLY colours and light: no drawing changes shape. `applyTime` repaints the district
+   palettes and every building's wall, roof and window colours, sets the light levels in LIGHT, and throws away the
+   cached pictures so they are painted again. The story can call `applyTime('day')` and so on per chapter later.
+   The old neon-night palette is gone on purpose (the user found it generic). */
+const TIMES = {
+  sunset: { label: 'Sunset',
+    walls: [['#a8563e', '#b8664a', '#96483a', '#c07a52', '#8a5a4a', '#b89a78'], ['#9a4a38', '#8a4434', '#a86048', '#7a5446', '#a07a5a'], ['#b0a698', '#9aa4b0', '#c0b49e', '#8e98a8', '#a89888']],
+    roofs: [['#5a5560', '#645e66', '#504c58'], ['#5a4e4a', '#665650', '#4e4442'], ['#62646e', '#6c6e78', '#585a64']],
+    ground: ['#4a4252', '#4c4250', '#484456'], side: ['#9a7e74', '#927468', '#9c847c'], plaza: ['#806a70', '#7a6466', '#84707a'],
+    lamp: '#ffd9a0', win: ['#ffd890', '#ffe7b0', '#ffc878', '#fff0c8'], lit: .3,
+    glow: .5, pools: .5, lamps: true, tint: 'rgba(255,120,60,.2)', green: 2.1, sea: 2.6, seaTint: '#c8785a' },
+  night: { label: 'Night',
+    walls: [['#5e3a34', '#6a4238', '#553430', '#70503e', '#4e3e3a', '#6a5e52'], ['#583028', '#4e2c26', '#603c30', '#463630', '#5c4a3c'], ['#5a5a62', '#50586a', '#66605a', '#4a5262', '#5c5650']],
+    roofs: [['#2e2e38', '#34343e', '#2a2a32'], ['#30292a', '#382e2c', '#2a2424'], ['#30323c', '#363842', '#2a2c36']],
+    ground: ['#1d1e26', '#1e1c22', '#1c1e28'], side: ['#3c3c44', '#38343a', '#3e4048'], plaza: ['#32323a', '#302c32', '#34363e'],
+    lamp: '#ffb866', win: ['#ffd890', '#ffe7b0', '#ffc878', '#cfe4ff'], lit: .34,
+    glow: .6, pools: 1, lamps: true, tint: null, green: 1.25, sea: 1, seaTint: null },
+  day: { label: 'Day',
+    walls: [['#b0604a', '#c07256', '#a05244', '#c88a62', '#96685a', '#c4aa8a'], ['#a4543e', '#94503e', '#b06a52', '#866052', '#aa8866'], ['#bcb4a8', '#a8b2c0', '#ccc2ae', '#9ca8b8', '#b4a698']],
+    roofs: [['#6c6a74', '#76727a', '#62606a'], ['#6a5e5a', '#766660', '#5e5450'], ['#74767e', '#7e8088', '#6a6c76']],
+    ground: ['#5c5e68', '#5e5a60', '#5c5e6a'], side: ['#a8a6a2', '#9e9690', '#aeaeac'], plaza: ['#928e94', '#8a8486', '#96969c'],
+    lamp: '#fff2d8', win: ['#6a7a8a', '#7a8898', '#5e6c7c', '#8a96a4'], lit: .5,
+    glow: .3, pools: .12, lamps: false, tint: null, green: 2.6, sea: 3.4, seaTint: '#5a8ab0' }
+};
+const TIME_ORDER = ['sunset', 'night', 'day'];
+const SIGN_COLS = NEON_GOOD;   // painted shop signs and awnings (the lists live in 04_world.js under their old names)
+// light levels the renderer reads: glow (signs, windows, flashes), pools (light on the ground), lamps lit, a wash over the picture, how green the green is, how light the water is
+const LIGHT = { glow: 1, pools: 1, lamps: true, tint: null, green: 1, sea: 1, seaTint: null, name: 'night' };
+function applyTime(name) {
+  const L = TIMES[name] || TIMES.sunset; name = TIMES[name] ? name : 'sunset';
+  Object.assign(LIGHT, { glow: L.glow, pools: L.pools, lamps: L.lamps, tint: L.tint, green: L.green, sea: L.sea, seaTint: L.seaTint, name });
+  for (let d = 0; d < 3; d++) Object.assign(DIST[d], { ground: L.ground[d], side: L.side[d], plaza: L.plaza[d], neon: SIGN_COLS, lamp: L.lamp, roof: L.roofs[d], wall: L.walls[d][0] });
+  for (const b of buildings) {
+    b._art = null; if (b.frame) continue;
+    const h = hash2(b.x, b.y);
+    b.wall = L.walls[b.d][h % L.walls[b.d].length]; b.roof = L.roofs[b.d][(h >>> 5) % L.roofs[b.d].length]; b.lit = L.lit * (.6 + (h % 80) / 100); b.trim = null;
+    for (const side of b.win) for (const w of side) w.c = L.win[((w.roll * 977) | 0) % L.win.length];
+  }
+  for (const t of trees) t._cv = null;
+  if (typeof GND !== 'undefined') GND.clear();
+  if (typeof drawMinimapBase === 'function' && mmCanvas) drawMinimapBase();
+}
+
+/* ---------- weather ----------
+   A rainy city (think Seattle): showers come and go on their own at any time of day, a bit more often wet than dry.
+   WEATHER.rain is how hard it is raining right now, 0 to 1; it fades in and out over a few seconds. Rain streaks,
+   splashes, the rain sound, the overcast wash and people's umbrellas all read it, so nobody carries an umbrella in the
+   dry. `setWeather('rain' | 'dry' | 'auto')` lets the story (or a test) fix it. */
+const WEATHER = { rain: 0, wet: false, t: 0, hold: null };
+function setWeather(m) { WEATHER.hold = m === 'rain' ? true : m === 'dry' ? false : null; if (WEATHER.hold !== null) { WEATHER.wet = WEATHER.hold; WEATHER.rain = WEATHER.wet ? 1 : 0; } }
+function startWeather() { WEATHER.wet = Math.random() < .55; WEATHER.rain = WEATHER.wet ? 1 : 0; WEATHER.t = WEATHER.wet ? rnd(50, 120) : rnd(40, 90); }
+function updateWeather(dt) {
+  if (WEATHER.hold === null) { WEATHER.t -= dt; if (WEATHER.t <= 0) { WEATHER.wet = !WEATHER.wet; WEATHER.t = WEATHER.wet ? rnd(70, 160) : rnd(50, 110); } }   // showers 70-160 s, dry spells 50-110 s
+  WEATHER.rain = approach(WEATHER.rain, WEATHER.wet ? 1 : 0, dt / 6);
+  if (typeof Audio2 !== 'undefined' && Audio2.setRain) Audio2.setRain(WEATHER.rain);
 }
 
 /* ============================== 05 ENTITIES ============================== */
@@ -2483,7 +2561,7 @@ const COSTUMES = {
   headband:   { name: 'Headband', how: 'Free or take over The Slums', ok: () => DS[1].bossDone },
   glowhood:   { name: 'Glow hood', how: 'Find all 12 kinetic shards', ok: () => G.shards >= 12 }
 };
-const COSTUME_KEY = 'kc_costumes';
+const COSTUME_KEY = 'grav_costumes';
 let costumesOpen = []; try { costumesOpen = JSON.parse(localStorage.getItem(COSTUME_KEY) || '[]') || []; } catch (e) { }
 const costumeUnlocked = id => id === 'raincoat' || costumesOpen.includes(id);
 function checkCostumes() {
@@ -2494,7 +2572,7 @@ function checkCostumes() {
 }
 function setCostume(id) { if (!HERO_COSTUMES[id] || !costumeUnlocked(id)) return false; heroCostume = id; SETTINGS.costume = id; saveSettings(); return true; }
 
-const SAVE_KEY = 'kinetic_city_v2';
+const SAVE_KEY = 'gravitation_v2';
 function saveGame() {
   if (!G.started) return;
   for (let d = 0; d < 3; d++) if (DS[d].bossDying) bossDefeated(d);   // never save the moment between a boss falling and the district changing hands
@@ -2516,7 +2594,7 @@ function resetState() {
   tkTarget = null; traj = null;
 }
 function newGame(save) {
-  resetState(); buildCity();
+  resetState(); buildCity(); applyTime(SETTINGS.time); if (WEATHER.hold === null) startWeather();
   heroCostume = costumeUnlocked(SETTINGS.costume) && HERO_COSTUMES[SETTINGS.costume] ? SETTINGS.costume : 'raincoat';
   if (save) {
     Object.assign(G, { karma: save.karma, xp: save.xp, level: save.level, points: save.points, shards: save.shards, shardIds: save.shardIds.slice(), kills: save.kills, civKills: save.civKills, saves: save.saves || 0, check: save.check, finished: save.finished, seen: save.seen || {} });
@@ -2537,7 +2615,7 @@ function buildActive() {
   for (const e of ents) { if (e.dead) continue; if (e === P || e.static || e.kind === 'boss' || (Math.abs(e.x - P.x) < ACTIVE_R && Math.abs(e.y - P.y) < ACTIVE_R)) act.push(e); }
 }
 function update(dt) {
-  G.time += dt;
+  G.time += dt; updateWeather(dt);
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   G.civHitT -= dt;
   G.curD = DS.findIndex(s => !s.bossDone); if (G.curD < 0) G.curD = 2;
@@ -2606,6 +2684,7 @@ function updateCamera(dt) {
 
 /* ---------- glow sprites ---------- */
 const glowCache = new Map();
+let _glowK = 1;   // LIGHT.pools for light on the ground, LIGHT.glow inside iglow
 function glowSprite(col) {
   let c = glowCache.get(col); if (c) return c;
   if (glowCache.size > 300) glowCache.clear();
@@ -2614,7 +2693,7 @@ function glowSprite(col) {
   gr.addColorStop(0, `rgba(${r},${gg},${b},1)`); gr.addColorStop(.22, `rgba(${r},${gg},${b},.5)`); gr.addColorStop(.55, `rgba(${r},${gg},${b},.13)`); gr.addColorStop(1, `rgba(${r},${gg},${b},0)`);
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64); glowCache.set(col, c); return c;
 }
-function glow(x, y, r, col, a = 1, sy = 1, sx = 1) { if (a <= .01) return; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(glowSprite(col), x - r * sx, y - r * sy, r * 2 * sx, r * 2 * sy); }
+function glow(x, y, r, col, a = 1, sy = 1, sx = 1) { a *= _glowK; if (a <= .01) return; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(glowSprite(col), x - r * sx, y - r * sy, r * 2 * sx, r * 2 * sy); }
 const kcol = () => karmaColor(Math.round(G.karma / 5) * 5);
 function neonPal(d) { const s = DS[d].status; return s === 'liberated' ? NEON_GOOD : s === 'dominated' ? NEON_EVIL : DIST[d].neon; }
 function lampCol(d) { const s = DS[d].status; return s === 'liberated' ? '#bfeaff' : s === 'dominated' ? '#ff5a4a' : DIST[d].lamp; }
@@ -3508,7 +3587,7 @@ function idisc(cx, cy, r, c) {
   ctx.fillStyle = c; cx = Math.round(cx); cy = Math.round(cy);
   for (let dy = -Math.floor(r); dy <= r; dy++) { const h = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))); if (h > 0) ctx.fillRect(cx - h, cy + dy, h * 2, 1); }
 }
-function iglow(x, y, r, col, a) { ctx.globalCompositeOperation = 'lighter'; glow(x, y, r, col, a); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+function iglow(x, y, r, col, a) { ctx.globalCompositeOperation = 'lighter'; const k = _glowK; _glowK = LIGHT.glow; glow(x, y, r, col, a); _glowK = k; ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
 // a small box sitting on a surface at height z0 (roof clutter, gate posts)
 function ibox(x, y, w, d, z0, hz, top, south, east) {
   const P_ = (a, b, z) => isoXY(a, b, z);
@@ -3580,8 +3659,9 @@ function initRain() {
   rain = []; for (let i = 0; i < 110; i++) rain.push({ x: rnd(ART_W), y: rnd(ART_H), l: rnd(3, 6) | 0, s: rnd(150, 230) });
 }
 function drawRain(dt) {
-  ctx.fillStyle = 'rgba(170,195,240,.28)';
-  for (const r of rain) {
+  const n = Math.round(rain.length * WEATHER.rain); if (!n) return;   // fewer streaks as a shower starts or thins out
+  ctx.fillStyle = LIGHT.name === 'night' ? 'rgba(170,195,240,.28)' : 'rgba(225,235,250,.34)';
+  for (let i = 0; i < n; i++) { const r = rain[i];
     r.y += r.s * dt; r.x += r.s * .16 * dt; if (r.y > ART_H) { r.y = -r.l; r.x = rnd(-20, ART_W); } if (r.x > ART_W) r.x -= ART_W + 10;
     const X = Math.round(r.x), Y = Math.round(r.y);
     for (let k = 0; k < r.l; k++) ctx.fillRect(X - (k / 6 | 0), Y - k, 1, 1);
@@ -3668,7 +3748,7 @@ function render(dt) {
   groundT();
   drawGround();
   artT(); drawSeaArt(); groundT();
-  ctx.globalCompositeOperation = 'lighter'; drawGroundLights(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'lighter'; _glowK = LIGHT.pools; drawGroundLights(); _glowK = 1; ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   drawGateStripes();
   _vis.length = 0;
   for (const e of ents) if (!e.dead && inView(e.x, e.y, 60) && e !== P) _vis.push(e);
@@ -3727,7 +3807,7 @@ function render(dt) {
   for (const e of ISO.lasers) drawAimLaser(e);
   drawHostileMarks();
   drawTKOverlay(); drawCharsFlatOver(); drawEffects();
-  updateSplashes(dt);
+  if (WEATHER.rain > .15) updateSplashes(dt);
   artT(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   drawRain(dt);
   // ---- scale the art up with hard pixels, then full-res post effects ----
@@ -3735,6 +3815,8 @@ function render(dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(artCv, 0, 0, cv.width, cv.height); ctx.imageSmoothingEnabled = true;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (G.mode !== 'title') {
+    if (LIGHT.tint) { ctx.fillStyle = LIGHT.tint; ctx.fillRect(0, 0, W, H); }
+    if (WEATHER.rain > 0 && LIGHT.name !== 'night') { ctx.fillStyle = `rgba(52,62,84,${(.2 * WEATHER.rain).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }   // overcast while it rains   // the time of day's wash (sunset)
     if (G.karma > 15) { ctx.fillStyle = `rgba(60,160,255,${.05 * G.karma / 100})`; ctx.fillRect(0, 0, W, H); }
     else if (G.karma < -15) { ctx.fillStyle = `rgba(255,30,50,${.09 * -G.karma / 100})`; ctx.fillRect(0, 0, W, H); }
   }
@@ -6163,7 +6245,7 @@ function drawChar(e) {
   if (gun && gy >= -.1) drawGun();
   ctx.globalAlpha = 1;
   // extras
-  if (e.kind === 'civ' && e.umb && e.state !== 'cheer') drawUmbrella(a[0], Y + spr.top - 1, e.umb, e.state === 'flee');
+  if (e.kind === 'civ' && e.umb && e.state !== 'cheer' && WEATHER.rain > .3) drawUmbrella(a[0], Y + spr.top - 1, e.umb, e.state === 'flee');
   if (e.kind === 'sup') { const p = .5 + .5 * Math.sin(t * 8 + e.id); ctx.globalAlpha = .4 + .4 * p; ctx.strokeStyle = '#c080ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(Math.round(a[0]) + .5, Math.round(a[1]) + .5, 10, 5, 0, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
   if (e.kind === 'boss') {
     if (e.stagger > 0) for (let i = 0; i < 3; i++) { const an = t * 4 + i * TAU / 3; ipx(a[0] + Math.cos(an) * 10, Y + spr.top - 3 + Math.sin(an) * 3, '#ffd23c'); }
@@ -6743,13 +6825,13 @@ function drawIsoTower(e) {
 /* ---------- gang hideout: a fortified brick warehouse ----------
    South wall (left face): roll-up shutter gate under a hazard lintel, two barred windows, graffiti.
    East wall (right face): the gang's initial sprayed large, a steel side door, a vent.
-   Roof: the gang's neon emblem on a sign facing the camera, stair hut, skylight, air-conditioning unit, flag, beacon,
+   Roof: the gang's mark painted on a rusting steel sign facing the camera, stair hut, skylight, air-conditioning unit, flag, beacon,
    razor wire on the front parapets.
    The still parts are painted once per hideout into a small canvas and stamped; only what moves or glows is drawn
    live on top (window light, emblem, shutter, lamps, flag, fan). Wall pixels are addressed as (column, row from the
    ground) so hand-placed details sit exactly on the brick. */
 const HIDE_HT = 96, HIDE_ROWS = 24;
-const HIDE_EMBLEM = [   // neon sign on the roof, one per gang: '#' tube, '+' brighter tube
+const HIDE_EMBLEM = [   // the mark painted on the roof sign, one per gang: '#' paint, '+' highlight
   px(`
     ##...........##
     .##.........##.
@@ -6857,11 +6939,14 @@ function hideoutStatic(e, g) {
   { const f = isoXY(x1 - 26, y1 - 21, ht + 8); iellipse(f[0], f[1], 4, 2, '#23262f'); ctx.fillStyle = '#343844'; const s = isoXY(x1 - 36, y1 - 14, ht + 4); for (let i = 1; i < 9; i += 2) ctx.fillRect(Math.round(s[0]) + i, Math.round(s[1]) + (i >> 1), 1, 1); }
   { const m = isoXY(x0 + 12, y1 - 10, ht); ctx.fillStyle = '#6a6e7a'; ctx.fillRect(Math.round(m[0]), Math.round(m[1]) - 5, 1, 5); }   // beacon mast
   { const fp = isoXY(x1 - 12, y0 + 12, ht); ctx.fillStyle = '#9a9ea8'; ctx.fillRect(Math.round(fp[0]), Math.round(fp[1]) - 17, 1, 17); ctx.fillStyle = '#5a5e68'; ctx.fillRect(Math.round(fp[0]) - 1, Math.round(fp[1]) - 1, 3, 1); }   // flag pole
-  // ---- rooftop sign: panel on two legs, tubes unlit here
-  { const [X, Y] = hideoutSign(e), em = HIDE_EMBLEM[e.did % 3];
-    ctx.fillStyle = '#3a3e4a'; ctx.fillRect(X + 2, Y + 14, 1, 4); ctx.fillRect(X + 14, Y + 14, 1, 4);
-    ctx.fillStyle = '#07070c'; ctx.fillRect(X - 1, Y - 1, 19, 16); ctx.fillStyle = '#2c2f3a'; ctx.fillRect(X, Y, 17, 14); ctx.fillStyle = '#0f0d11'; ctx.fillRect(X + 1, Y + 1, 15, 12);
-    em.forEach((row, k) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') { ctx.fillStyle = '#3a3336'; ctx.fillRect(X + 1 + i, Y + 1 + k, 1, 1); } }); }
+  // ---- rooftop sign: a rusting steel plate on two legs with the gang's mark painted on it (industrial, not neon)
+  { const [X, Y] = hideoutSign(e), em = HIDE_EMBLEM[e.did % 3], paint = live ? mix(col, '#f0e4c8', .25) : '#6a6058', hi = live ? '#f6ecd2' : '#847a70';
+    ctx.fillStyle = '#3a3e4a'; ctx.fillRect(X + 2, Y + 14, 1, 4); ctx.fillRect(X + 14, Y + 14, 1, 4); ctx.fillRect(X + 3, Y + 15, 11, 1);
+    ctx.fillStyle = '#07070c'; ctx.fillRect(X - 1, Y - 1, 19, 16); ctx.fillStyle = '#6a5348'; ctx.fillRect(X, Y, 17, 14); ctx.fillStyle = '#3a2c28'; ctx.fillRect(X + 1, Y + 1, 15, 12);
+    for (let i = 0; i < 14; i++) { const h = hash2(e.hid * 31 + i, 77), rx = X + 1 + h % 15, ry = Y + 1 + (h >> 5) % 12; ctx.fillStyle = (h >> 9) & 1 ? '#5a3424' : '#2c2220'; ctx.fillRect(rx, ry, 1 + ((h >> 11) & 1), 1); }   // rust and grime
+    ctx.fillStyle = '#8a7a70'; for (const [rx, ry] of [[0, 0], [16, 0], [0, 13], [16, 13]]) ctx.fillRect(X + rx, Y + ry, 1, 1);   // rivets
+    em.forEach((row, k) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') { ctx.fillStyle = row[i] === '+' ? hi : paint; ctx.fillRect(X + 1 + i, Y + 1 + k, 1, 1); } });
+    ctx.fillStyle = '#5a3424'; ctx.fillRect(X + 4, Y + 14, 1, 2); ctx.fillRect(X + 11, Y + 14, 1, 1); }   // rust streaks under it
   // ---- razor wire: loose coils on the front parapets, a plain strand along the back
   for (let i = 1; i < nS; i += 2) put(S(i, 24), i % 4 === 1 ? '#b4b8c2' : '#5e616b');
   for (let i = 1; i < nE; i += 2) put(E(i, 24), i % 4 === 1 ? '#9296a0' : '#4e515a');
@@ -6882,7 +6967,7 @@ function drawIsoHideout(e) {
   const put = (p, c) => { ctx.fillStyle = c; ctx.fillRect(p[0], p[1], 1, 1); };
   // ---- gate: the shutter rolls up once the guards and the tower are down
   const g0 = (nS >> 1) - 8, open = e.gateOpen ? (e.gateT === undefined ? 1 : e.gateT) : 0, sb = Math.round(10 * clamp(open, 0, 1));
-  if (open > 0 && live) { const m = S(g0 + 8, 4); iglow(m[0], m[1], 15, col, .55 * open); for (let i = 0; i < 16; i++) for (let j = 0; j < Math.min(sb, 4); j++) put(S(g0 + i, j), rgba(col, .16 - j * .035)); }   // light from inside on the floor of the doorway
+  if (open > 0 && live) { const m = S(g0 + 8, 4); iglow(m[0], m[1], 15, '#ffb060', .5 * open); for (let i = 0; i < 16; i++) for (let j = 0; j < Math.min(sb, 4); j++) put(S(g0 + i, j), rgba('#ffb060', .16 - j * .035)); }   // light from inside on the floor of the doorway
   for (let j = sb; j < 10; j++) for (let i = 0; i < 16; i++) put(S(g0 + i, j), j === sb ? ((i >> 1) & 1 ? '#17130a' : '#e0b020') : (j - sb) & 1 ? '#666b78' : '#4a4e5a');   // slats, hazard strip on the bottom edge
   if (sb < 9) { put(S(g0 + 7, sb + 2), '#1d1f26'); put(S(g0 + 8, sb + 2), '#1d1f26'); }   // handle
   const lamp = S(g0 + 8, 12);
@@ -6891,22 +6976,18 @@ function drawIsoHideout(e) {
   // ---- lit windows behind their bars
   for (const w0 of [3, nS - 11]) {
     const a = .5 + .22 * Math.sin(t * 3 + w0) + (Math.sin(t * 17 + w0 * 3) > .93 ? -.3 : 0);
-    for (let i = 1; i <= 6; i++) for (let j = 14; j <= 17; j++) put(S(w0 + i, j), i % 2 ? rgba(col, clamp(a, .1, .9)) : '#0a0707');
-    const m = S(w0 + 4, 15); iglow(m[0], m[1], 7, col, .25);
+    for (let i = 1; i <= 6; i++) for (let j = 14; j <= 17; j++) put(S(w0 + i, j), i % 2 ? rgba('#ffc878', clamp(a, .1, .9)) : '#0a0707');   // plain bulb light
+    const m = S(w0 + 4, 15); iglow(m[0], m[1], 7, '#ffc878', .25);
   }
-  // ---- neon emblem; now and then a tube stutters
-  const em = HIDE_EMBLEM[e.did % 3], [sx, sy] = hideoutSign(e), stutter = Math.sin(t * 1.3 + e.hid * 2.1) > .95 && Math.sin(t * 43) > 0;
-  if (!stutter) {
-    const tube = mix(col, '#ffffff', .18), hot = mix(col, '#ffffff', .72);
-    em.forEach((row, k) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') put([sx + 1 + i, sy + 1 + k], row[i] === '+' ? hot : tube); });
-    iglow(sx + 8, sy + 7, 17, col, .5);
-  }
+  // ---- a work lamp on a gooseneck lights the painted sign after dark
+  { const [sx, sy] = hideoutSign(e); put([sx + 8, sy - 3], '#3a3e4a'); put([sx + 8, sy - 2], '#3a3e4a'); put([sx + 7, sy - 3], '#3a3e4a');
+    if (LIGHT.lamps) { put([sx + 7, sy - 2], '#fff0c8'); iglow(sx + 8, sy + 4, 13, '#ffd9a0', .4); } }
   { const d = E(27, 12); put(d, '#ffe9b8'); iglow(d[0], d[1] + 1, 5, '#ffd9a0', .45); }   // lamp over the side door
   // ---- roof: skylight glow, fan, flag, beacon, floodlights
   const sk = [isoXY(x0 + 40, y0 + 16, ht), isoXY(x0 + 60, y0 + 16, ht), isoXY(x0 + 60, y0 + 32, ht), isoXY(x0 + 40, y0 + 32, ht)];
-  ctx.globalAlpha = .3 + .12 * Math.sin(t * 1.7 + e.hid); ipoly(sk, col); ctx.globalAlpha = 1;
+  ctx.globalAlpha = .3 + .12 * Math.sin(t * 1.7 + e.hid); ipoly(sk, '#ffc878'); ctx.globalAlpha = 1;
   iline(isoXY(x0 + 50, y0 + 14, ht), isoXY(x0 + 50, y0 + 34, ht), '#5a5e6c'); iline(isoXY(x0 + 38, y0 + 24, ht), isoXY(x0 + 62, y0 + 24, ht), '#5a5e6c');
-  { const m = isoXY(x0 + 50, y0 + 24, ht); iglow(m[0], m[1], 12, col, .22); }
+  { const m = isoXY(x0 + 50, y0 + 24, ht); iglow(m[0], m[1], 12, '#ffc878', .22); }
   { const f = isoXY(x1 - 26, y1 - 21, ht + 8), X = Math.round(f[0]), Y = Math.round(f[1]), ph = Math.floor(t * 12) % 3; ctx.fillStyle = '#5d6372';   // fan blade: one short bar turning
     if (ph === 0) ctx.fillRect(X - 2, Y, 5, 1); else if (ph === 1) { ctx.fillRect(X - 2, Y - 1, 2, 1); ctx.fillRect(X, Y, 1, 1); ctx.fillRect(X + 1, Y + 1, 2, 1); } else { ctx.fillRect(X + 1, Y - 1, 2, 1); ctx.fillRect(X, Y, 1, 1); ctx.fillRect(X - 2, Y + 1, 2, 1); } }
   { const fp = isoXY(x1 - 12, y0 + 12, ht), X = Math.round(fp[0]) + 1, Y = Math.round(fp[1]) - 17;   // flag: 9 x 6, rippling
@@ -7451,11 +7532,12 @@ function drawIsoBuilding(b) {
 /* The city is ringed by roads, so nothing leads off the map; past the outer road there used to be flat black. Now the
    outer road is a waterfront: a kerb, a quay wall on the two sides that face the camera, and dark water with slow
    ripples and the odd channel buoy. Nothing here collides or is simulated; it is only drawn. */
-const SEA = { base: '#0b1729', deep: '#081120', kerb: '#4a5163', wallS: '#262b38', wallE: '#1a1e28', rip: '#1d3458', hi: '#3d6399' };
+const SEA0 = { base: '#0b1729', deep: '#081120', kerb: '#4a5163', wallS: '#262b38', wallE: '#1a1e28', rip: '#1d3458', hi: '#3d6399' }, SEA = { ...SEA0 }; let _seaFor = '';
+function seaColours() { if (_seaFor === LIGHT.name) return; _seaFor = LIGHT.name; for (const k in SEA0) { const quay = k === 'kerb' || k === 'wallS' || k === 'wallE'; let c = shade(SEA0[k], quay ? 1 + (LIGHT.sea - 1) * .45 : LIGHT.sea); if (LIGHT.seaTint && !quay) c = mix(c, LIGHT.seaTint, .3); SEA[k] = c; } }   // the water follows the time of day
 function seaInView() { return cam.x < 0 || cam.y < 0 || cam.x + cam.w > WORLD_W || cam.y + cam.h > WORLD_H; }
 // ground pass (affine): water under everything, a paler band near the shore, the kerb along the edge of the road
 function drawSea() {
-  if (!seaInView()) return;
+  if (!seaInView()) return; seaColours();
   const x0 = cam.x - 80, y0 = cam.y - 80, w = cam.w + 160, h = cam.h + 160;
   ctx.fillStyle = SEA.deep; ctx.fillRect(x0, y0, w, h);
   ctx.fillStyle = SEA.base; ctx.fillRect(-150, -150, WORLD_W + 300, WORLD_H + 300);           // shallower, a touch lighter, near the quay
@@ -7525,8 +7607,8 @@ function paintGroundCell(kx, ky) {
   if (d === 1) for (let i = 0; i < 3; i++) { const x = R(X0 + 10, X1 - 10), y = R(Y0 + 10, Y1 - 10), r = R(4, 8); if (!onRoad(x - r, y - r) || !onRoad(x + r, y + r)) continue; gDisc(x, y, r, '#09080c'); gDisc(x + 1, y + 1, r * .55, '#1a2230'); gPx(x - 1, y - 1, '#4a5a78'); }
   for (let i = 0; i < 2; i++) { const along = i === 0, x = along ? R(X0 + 130, X0 + 350) : X0 + (rnd() < .5 ? 24 : 72), y = along ? Y0 + (rnd() < .5 ? 24 : 72) : R(Y0 + 130, Y0 + 350); if (!onRoad(x - 6, y - 6) || !onRoad(x + 6, y + 6)) continue; gDisc(x, y, 5.5, shade(g, 1.75)); gDisc(x, y, 4, shade(g, .9)); gLine(x - 3, y, x + 3, y, shade(g, 1.5)); }
   // ---- paint: centre dashes and zebra crossings
-  const dashC = d === 2 ? mix(g, '#7affea', .5) : mix(g, '#ffcd6e', d === 1 ? .2 : .36), zebra = mix(g, d === 2 ? '#bfeaff' : '#d7def0', d === 1 ? .13 : .2);
-  if (hasH) for (let x = X0 + 96; x < X1; x += 32) { if (d === 1 && hash2(x, Y0) % 10 < 3) continue; gLine(x + 4, Y0 + 47, x + 20, Y0 + 47, dashC); gLine(x + 4, Y0 + 49, x + 20, Y0 + 49, dashC); if (d === 2) gPx(x + 4, Y0 + 48, '#e8fbff'); }
+  const dashC = d === 2 ? mix(g, '#f0f0f4', .45) : mix(g, '#ffcd6e', d === 1 ? .3 : .5), zebra = mix(g, '#eef0f6', d === 1 ? .2 : .32);
+  if (hasH) for (let x = X0 + 96; x < X1; x += 32) { if (d === 1 && hash2(x, Y0) % 10 < 3) continue; gLine(x + 4, Y0 + 47, x + 20, Y0 + 47, dashC); gLine(x + 4, Y0 + 49, x + 20, Y0 + 49, dashC); }
   if (hasV) for (let y = Y0 + 96; y < Y1; y += 32) { if (d === 1 && hash2(X0, y) % 10 < 3) continue; gLine(X0 + 47, y + 4, X0 + 47, y + 20, dashC); gLine(X0 + 49, y + 4, X0 + 49, y + 20, dashC); if (d === 2) gPx(X0 + 48, y + 4, '#e8fbff'); }
   const bar = (x, y, w, h) => { if (x + w > X1 || y + h > Y1) return; if (d === 1 && hash2(x | 0, y | 0) % 10 < 2) return; gR(x, y, w, h, zebra); };
   for (let i = 0; i < 7; i++) {
@@ -7535,7 +7617,7 @@ function paintGroundCell(kx, ky) {
     if (hasH) { bar(X0 + 100, Y0 + o, 20, 6); if (X0 + BAND < WORLD_W) bar(X0 + 360, Y0 + o, 20, 6); }
   }
   if (d === 2) {   // lit strips along the kerbs
-    const c = mix(g, D_.col, .42);
+    const c = shade(g, 1.3);
     if (hasH) { gLine(X0 + 100, Y0 + 4, X1 - 4, Y0 + 4, c); gLine(X0 + 100, Y0 + 92, X1 - 4, Y0 + 92, c); }
     if (hasV) { gLine(X0 + 4, Y0 + 100, X0 + 4, Y1 - 4, c); gLine(X0 + 92, Y0 + 100, X0 + 92, Y1 - 4, c); }
   }
@@ -7553,19 +7635,19 @@ function paintGroundCell(kx, ky) {
   if (d === 1) for (let i = 0; i < 26; i++) { const e = (rnd() * 4) | 0, u = R(4, b.w - 4), v = R(3, 29), x = e < 2 ? b.x + u : (e === 2 ? b.x + v : b.x + b.w - v), y = e < 2 ? (e === 0 ? b.y + v : b.y + b.h - v) : b.y + u; gPx(x, y, rnd() < .4 ? '#2c4a2c' : rnd() < .5 ? '#6a6458' : '#3a3440'); }   // weeds and litter
   const tact = mix(side, '#e8b830', d === 1 ? .2 : .32);
   for (const o of [4, 264]) { gR(b.x + o, b.y + 1, 20, 5, tact); gR(b.x + o, b.y + b.h - 6, 20, 5, tact); gR(b.x + 1, b.y + o, 5, 20, tact); gR(b.x + b.w - 6, b.y + o, 5, 20, tact); }
-  const kerb = d === 2 ? mix(side, D_.col, .62) : mix(side, '#bec8e1', d === 1 ? .22 : .36);
+  const kerb = mix(side, '#e6e8f0', d === 1 ? .22 : .36);
   gLine(b.x, b.y, b.x + b.w, b.y, kerb); gLine(b.x, b.y, b.x, b.y + b.h, kerb); gLine(b.x, b.y + b.h - 1, b.x + b.w, b.y + b.h - 1, kerb); gLine(b.x + b.w - 1, b.y, b.x + b.w - 1, b.y + b.h, kerb);
   gLine(b.x - 2, b.y + b.h + 2, b.x + b.w + 2, b.y + b.h + 2, shade(g, .55)); gLine(b.x + b.w + 2, b.y - 2, b.x + b.w + 2, b.y + b.h + 2, shade(g, .55));   // gutter shadow on the two near sides
   for (const [x, y] of [[b.x + 40, b.y - 4], [b.x + b.w - 46, b.y + b.h + 2], [b.x - 5, b.y + b.h - 46], [b.x + b.w + 2, b.y + 40]]) gR(x, y, 6, 3, '#07080b');   // drains
   const inner = shade(side, .74);
   gR(ix, iy, iw, iw, inner);
   if (b.kind === 'park') {
-    const grass = d === 1 ? '#161f15' : d === 2 ? '#0e2a22' : '#10281b', path = side;
+    const grass = shade(d === 1 ? '#161f15' : d === 2 ? '#0e2a22' : '#10281b', LIGHT.green), path = side;
     gR(ix, iy, iw, iw, grass);
     for (let i = 0; i < 110; i++) { const x = ix + R(2, iw - 2), y = iy + R(2, iw - 2), v = rnd(); gPx(x, y, v < .45 ? shade(grass, 1.45) : v < .8 ? shade(grass, .62) : shade(grass, 1.8)); if (v > .9) gPx(x + 2, y, shade(grass, 1.45)); }
     if (d === 1) for (let i = 0; i < 6; i++) gDisc(ix + R(14, iw - 14), iy + R(14, iw - 14), R(6, 12), '#1c1712');
     gR(ix + 3 * TILE, iy, TILE, iw, path); gR(ix, iy + 3 * TILE, iw, TILE, path);
-    const pe = d === 2 ? mix(path, D_.col, .55) : shade(path, 1.3);
+    const pe = shade(path, 1.3);
     for (const o of [3 * TILE, 4 * TILE - 1]) for (const [a0, a1] of [[0, 3 * TILE], [4 * TILE, iw]]) { gLine(ix + o, iy + a0, ix + o, iy + a1, pe); gLine(ix + a0, iy + o, ix + a1, iy + o, pe); }
     for (let i = 1; i < 7; i++) { gLine(ix + 3 * TILE, iy + i * TILE, ix + 4 * TILE, iy + i * TILE, shade(path, .72)); gLine(ix + i * TILE, iy + 3 * TILE, ix + i * TILE, iy + 4 * TILE, shade(path, .72)); }
     const fl = d === 1 ? ['#8a8460'] : ['#ff8fb8', '#ffe08a', '#e8f0ff', '#9ad0ff'];
@@ -7651,7 +7733,7 @@ function lampArm(l) {
 }
 function drawIsoLamp(l) {
   const b = isoXY(l.x, l.y, 0), X = Math.round(b[0]), Y = Math.round(b[1]), c = lampCol(l.d), d = l.d;
-  let k = 1; if (l.broken) k = .05; else if (l.flick) k = Math.sin(G.time * 13 + l.ph) > -.7 ? 1 : .25;
+  let k = 1; if (l.broken || !LIGHT.lamps) k = .05; else if (l.flick) k = Math.sin(G.time * 13 + l.ph) > -.7 ? 1 : .25;
   const lit = k > .5, px1 = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
   if (d === 2) {            // Tower: a slim post whose top third is a light bar
     px1(X - 1, Y - 1, 3, 2, '#14151f'); px1(X, Y - 12, 1, 11, '#3d4058'); px1(X - 1, Y - 13, 3, 1, '#14151f');
@@ -7676,6 +7758,7 @@ function treeArt(t) {
   const d = districtAt(t.x), rnd = mulberry(hash2(Math.round(t.x), Math.round(t.y))), r = Math.round(t.r * ISO_K * .85), trunkH = Math.round(t.h * ISO_KZ) - 1;
   const bare = d === 1 && rnd() < .35, blossom = d === 2 && rnd() < .55;
   const leaf = blossom ? ['#3a1c3a', '#5c2a56', '#8e3f7a', '#d766b0', '#ffa6dc'] : d === 1 ? ['#10190f', '#1b2a17', '#27391e', '#35482a', '#4a5c38'] : ['#081a12', '#0f2a1c', '#174028', '#1f5634', '#2f7446'];
+  for (let i = 0; i < leaf.length; i++) leaf[i] = shade(leaf[i], 1 + (LIGHT.green - 1) * .55);   // brighter by day
   const W = r * 2 + 8, H = r * 2 + trunkH + 8, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), cx = W >> 1, base = H - 3, cy = base - trunkH - r + 2;
   const px1 = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
   // trunk with a root flare
@@ -8300,7 +8383,7 @@ const UI = (() => {
     box.classList.remove('ok', 'warn');
     if (Input.blocked) { box.classList.add('warn'); t.textContent = 'This frame blocks controller access. Open the game in its own browser tab to use a controller, or play with keyboard and mouse.'; }
     else if (Input.padConnected) { box.classList.add('ok'); t.textContent = 'Controller connected · ' + (Input.padStyle === 'ps' ? 'PlayStation' : 'Xbox') + ' layout. Use the left stick or d-pad and ' + (Input.padStyle === 'ps' ? '✕' : 'A') + ' to choose.'; }
-    else if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) t.textContent = 'Kinetic City is played with a controller. Pair a Bluetooth controller with this device, then press any button on it.';
+    else if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) t.textContent = 'Gravitation is played with a controller. Pair a Bluetooth controller with this device, then press any button on it.';
     else t.textContent = 'No controller detected yet. Press any button on a connected controller, or play with keyboard and mouse.';
   }
 
@@ -8399,7 +8482,7 @@ const UI = (() => {
       const keep = keepId && body.querySelector(`.card[data-id="${keepId}"]`);
       setFocus(keep || body.querySelector('.card.can') || body.querySelector('.card'));
     } else if (tab === 'looks') {
-      let h = '<p class="lookhint">Pick what the hero wears. The trim on every costume follows your karma.</p><div class="looks">';
+      let h = '<p class="lookhint">Pick what Bary wears. The trim on every costume follows your karma.</p><div class="looks">';
       for (const id in HERO_COSTUMES) { const c = COSTUMES[id], open = costumeUnlocked(id), on = heroCostume === id;
         h += `<button class="look nav ${open ? '' : 'lock'} ${on ? 'on' : ''}" data-id="${id}"><canvas width="18" height="23" data-look="${id}"></canvas><span class="nm">${open ? c.name : '???'}</span><span class="st">${on ? 'Wearing' : open ? 'Wear' : c.how}</span></button>`; }
       body.innerHTML = h + '</div>';
@@ -8449,6 +8532,7 @@ const UI = (() => {
     { sec: 'Display', k: 'full', name: 'Fullscreen' },
     { sec: 'Display', k: 'hud', name: 'HUD size', min: .7, max: 1.1, step: .1 },
     { sec: 'Display', k: 'shake', name: 'Screen shake' },
+    { sec: 'Display', k: 'time', name: 'Time of day', opts: [['sunset', 'Sunset'], ['night', 'Night'], ['day', 'Day']] },
     { sec: 'Display', k: 'see', name: 'Hero behind buildings', opts: [[0, 'Hidden'], [1, 'Outline'], [2, 'Window'], [3, 'See-through wall']] },
     { sec: 'Controls', k: 'rumble', name: 'Controller rumble' },
     { sec: 'Controls', k: 'deadzone', name: 'Stick dead zone', min: .1, max: .35, step: .05 },
@@ -8456,12 +8540,13 @@ const UI = (() => {
     { sec: 'Save', k: 'wipe', name: 'Delete saved game', titleOnly: true, warn: true }
   ];
   let wipeArm = false;
-  const k0 = o => 2;   // which option an unknown stored value falls back to (Normal aim assist, Window)
+  const same = (a, b) => typeof a === 'string' ? a === b : Math.abs(a - b) < 1e-6;
+  const k0 = o => o.k === 'time' ? 0 : 2;   // which option an unknown stored value falls back to (Normal aim assist, Window)
   function setLabel(o) {
     if (o.k === 'full') return document.fullscreenElement ? 'On' : 'Off';
     if (o.k === 'wipe') return wipeArm ? 'Press again to delete' : 'Delete';
     const v = SETTINGS[o.k];
-    if (o.opts) return (o.opts.find(p => Math.abs(p[0] - v) < 1e-6) || o.opts[k0(o)])[1];
+    if (o.opts) return (o.opts.find(p => same(p[0], v)) || o.opts[k0(o)])[1];
     return o.step ? Math.round(v * 100) + '%' : v ? 'On' : 'Off';
   }
   function adjustSetting(k, d, wrap) {
@@ -8473,9 +8558,10 @@ const UI = (() => {
       if (!wipeArm) wipeArm = true; else { wipeArm = false; try { localStorage.removeItem(SAVE_KEY); } catch (e) { } $('bCont').disabled = true; }
       sfx('ui'); renderTab(loadSave() ? k : null); return;
     }
-    if (o.opts) { let i = o.opts.findIndex(p => Math.abs(p[0] - SETTINGS[k]) < 1e-6); if (i < 0) i = k0(o); i += d; SETTINGS[k] = o.opts[wrap ? (i + o.opts.length) % o.opts.length : clamp(i, 0, o.opts.length - 1)][0]; }
+    if (o.opts) { let i = o.opts.findIndex(p => same(p[0], SETTINGS[k])); if (i < 0) i = k0(o); i += d; SETTINGS[k] = o.opts[wrap ? (i + o.opts.length) % o.opts.length : clamp(i, 0, o.opts.length - 1)][0]; }
     else if (o.step) { let v = Math.round((SETTINGS[k] + d * o.step) * 100) / 100; if (wrap && v > o.max + 1e-6) v = o.min; SETTINGS[k] = clamp(v, o.min, o.max); if (k === 'music' || k === 'sfx') Audio2.applyVolumes(); }
     else { SETTINGS[k] = !SETTINGS[k]; if (k === 'rumble' && SETTINGS.rumble) Input.rumble(.6, .6, 200); }
+    if (k === 'time') applyTime(SETTINGS.time);
     saveSettings(); sfx('ui'); renderTab(k);
   }
   async function toggleFull() { const on = !document.fullscreenElement; SETTINGS.full = on; saveSettings(); try { if (on) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (e) { } }   // the choice is kept: off stays off the next time a game starts
@@ -8602,6 +8688,8 @@ window.KC = {
     drawMinimapBase(); const c = checkpointFor(d); P.x = c.x; P.y = c.y; DS[d].intro = true; snapCamera();
   },
   costume(n) { if (HERO_COSTUMES[n]) heroCostume = n; return heroCostume; },
+  weather(m) { if (m !== undefined) setWeather(m); return { rain: WEATHER.rain, wet: WEATHER.wet, hold: WEATHER.hold }; },   // 'rain' | 'dry' | 'auto'
+  time(n) { if (n !== undefined) { SETTINGS.time = n; applyTime(n); } return LIGHT.name; },   // 'sunset' | 'night' | 'day'
   see(n) { if (n !== undefined) SETTINGS.see = n; return SETTINGS.see; },   // how the hero shows behind buildings: 0 hidden, 1 silhouette, 2 window, 3 see-through wall
   spawn: mk, spawnGang, spawnBoss, render, drawHUD, snapCamera, hurt, kill, explosion
 };
