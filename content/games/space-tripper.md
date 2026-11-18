@@ -6,6 +6,6 @@ description: Fly the van solo through space, off the grid.
 controls: Keyboard, or the on-screen stick and buttons. Press F for fullscreen.
 touch: yes
 aspect: 16:9
-order: 3
+order: 5
 ---
 PROTOTYPE. Unfinished and rough in places.

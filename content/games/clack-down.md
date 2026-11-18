@@ -6,6 +6,6 @@ description: The Milk Cap Tournament. Flick the caps.
 controls: Touch or mouse. Keyboard also works.
 touch: yes
 aspect: 10:9
-order: 4
+order: 6
 ---
 PROTOTYPE. Unfinished and rough in places.
