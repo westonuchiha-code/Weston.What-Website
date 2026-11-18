@@ -6,6 +6,6 @@ description: A handheld pixel-art game. Pick New Game and step into the coliseum
 controls: On-screen pad on touch screens. Keyboard also works.
 touch: yes
 aspect: 9:16
-order: 4
+order: 5
 ---
 WORK IN PROGRESS. Version 3.90. Progress is saved in this browser.

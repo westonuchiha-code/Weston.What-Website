@@ -6,6 +6,6 @@ description: A 3D adventure starring a very small knight. Collect cheese crumbs 
 controls: WASD or arrow keys to move. Controller also works.
 touch: no
 aspect: 4:3
-order: 5
+order: 1
 ---
 WORK IN PROGRESS. Unfinished and rough in places.
