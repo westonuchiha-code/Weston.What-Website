@@ -437,7 +437,7 @@ export function aboutPage(ctx, a) {
           : `<a class="btn" href="${ctx.href(x.url)}" download>DOWNLOAD ${e(x.label || x.name)}</a>`;
         return `<p class="download__actions">${main.map(btn).join(' ')}</p>`
           + (all.length > 1 ? `<ul class="download__files">${main.map((x) => `<li>${e(x.name)} (${bytes(x.size)} bytes)</li>`).join('')}</ul>` : '')
-          + side.map((x) => `<div class="download__aside"><h3>ANDROID APP (APK)</h3><p>${e(x.apart)}</p><p class="download__actions">${btn(x)}</p><ul class="download__files"><li>${e(x.name)} (${bytes(x.size)} bytes)</li></ul></div>`).join('');
+          + (side.length ? `<div class="download__aside"><h3>ANDROID ${side.length > 1 ? 'APPS' : 'APP'} (APK)</h3><p>${e(side[0].apart)}</p><p class="download__actions">${side.map(btn).join(' ')}</p><ul class="download__files">${side.map((x) => `<li>${e(x.name)} (${bytes(x.size)} bytes)</li>`).join('')}</ul></div>` : '');
       })()}` });
   };
   const lockedFiles = a.downloads.filter((f) => f.locked), openFiles = a.downloads.filter((f) => !f.locked);
