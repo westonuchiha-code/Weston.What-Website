@@ -425,15 +425,20 @@ export function aboutPage(ctx, a) {
       f.date ? `<div><dt>Added</dt><dd><time datetime="${e(f.date)}">${e(f.date)}</time></dd></div>` : '',
       `<div><dt>Size</dt><dd>${bytes(f.size)} bytes</dd></div>`,
     ].join('');
-    return win({ ctx, id: `file-${f.slug}`, title: e(f.name.toUpperCase()), iconName: 'floppy', cls: 'file-win download', body: `
+    return win({ ctx, id: `file-${f.slug}`, title: e((f.group ? f.title : f.name).toUpperCase()), iconName: 'floppy', cls: 'file-win download', body: `
       <h2 class="download__title">${e(f.title)}</h2>
       <dl class="entry__facts">${facts}</dl>
       ${f.description ? `<p>${e(f.description)}</p>` : ''}
       ${f.html ? `<div class="prose">${f.html}</div>` : ''}
-      <p class="download__actions">${[f, ...(f.more || [])].map((x) => x.locked
-        ? `<button class="btn" type="button" data-dl="${e(ctx.href(x.url))}" data-name="${e(x.name)}">DOWNLOAD ${e(x.label || x.name)}</button>`
-        : `<a class="btn" href="${ctx.href(x.url)}" download>DOWNLOAD ${e(x.label || x.name)}</a>`).join(' ')}</p>
-      ${f.more && f.more.length ? `<ul class="download__files">${[f, ...f.more].map((x) => `<li>${e(x.name)} (${bytes(x.size)} bytes)</li>`).join('')}</ul>` : ''}` });
+      ${(() => {
+        const all = [f, ...(f.more || [])], main = all.filter((x) => !x.apart), side = all.filter((x) => x.apart);
+        const btn = (x) => x.locked
+          ? `<button class="btn" type="button" data-dl="${e(ctx.href(x.url))}" data-name="${e(x.name)}">DOWNLOAD ${e(x.label || x.name)}</button>`
+          : `<a class="btn" href="${ctx.href(x.url)}" download>DOWNLOAD ${e(x.label || x.name)}</a>`;
+        return `<p class="download__actions">${main.map(btn).join(' ')}</p>`
+          + (all.length > 1 ? `<ul class="download__files">${main.map((x) => `<li>${e(x.name)} (${bytes(x.size)} bytes)</li>`).join('')}</ul>` : '')
+          + side.map((x) => `<div class="download__aside"><h3>ANDROID APP (APK)</h3><p>${e(x.apart)}</p><p class="download__actions">${btn(x)}</p><ul class="download__files"><li>${e(x.name)} (${bytes(x.size)} bytes)</li></ul></div>`).join('');
+      })()}` });
   };
   const lockedFiles = a.downloads.filter((f) => f.locked), openFiles = a.downloads.filter((f) => !f.locked);
   const folder = (name, iconName, inner, open) => `<details class="folder"${open ? ' open' : ''}>
