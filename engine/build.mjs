@@ -400,6 +400,10 @@ ${pages.map((p) => `  <url><loc>${base}${p}</loc></url>`).join('\n')}
 /chiptune/*
   ! Content-Security-Policy
 
+# Same for the Garden Together app.
+/apps/*
+  ! Content-Security-Policy
+
 # Same for the hidden Chip Crusher app.
 /chipcrusher/*
   ! Content-Security-Policy

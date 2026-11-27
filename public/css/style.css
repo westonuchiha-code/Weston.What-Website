@@ -822,3 +822,10 @@ html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transitio
 .download__files { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--dim); }
 .download__aside { margin-top: 18px; padding-top: 12px; border-top: 2px dashed var(--dim); }
 .download__aside h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: .08em; }
+.apphint { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; }
+.apphint__arrow { font-size: 26px; line-height: 1; color: #ff3cc8; text-shadow: 0 0 8px #ff3cc8; animation: apphint-bob .8s steps(2, end) infinite; }
+@keyframes apphint-bob { 0% { transform: translateX(0); } 100% { transform: translateX(8px); } }
+.appicon { display: inline-block; line-height: 0; border: 2px solid var(--line, #39ff88); box-shadow: 0 0 10px rgba(57,255,136,.45); }
+.appicon img { image-rendering: pixelated; display: block; }
+.appicon:hover, .appicon:focus-visible { box-shadow: 0 0 18px rgba(57,255,136,.9); transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { .apphint__arrow { animation: none; } }
