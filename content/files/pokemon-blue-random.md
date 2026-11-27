@@ -5,4 +5,6 @@ game: Pokémon Blue
 kind: Save state
 date: 2026-10-29
 order: 2
+locked: no
+folder: SAVE FILES
 ---

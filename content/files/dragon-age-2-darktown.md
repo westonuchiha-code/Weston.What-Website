@@ -6,5 +6,7 @@ kind: PS3 save
 date: 2026-10-29
 order: 26
 platform: PlayStation 3
+locked: no
+folder: SAVE FILES
 ---
 Character "Weston", at Darktown. Quest: find a map into the Deep Roads from Anders, a Grey Warden in Kirkwall.

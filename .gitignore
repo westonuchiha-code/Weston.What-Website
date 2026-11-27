@@ -27,3 +27,7 @@ content/download-password.txt
 !content/downloads/SA-Companion.zip
 !content/downloads/Optical-Theremin.zip
 !content/downloads/Touch-Synth.zip
+
+# save files are open now (no password)
+!content/downloads/*.zip
+!content/downloads/*.st1

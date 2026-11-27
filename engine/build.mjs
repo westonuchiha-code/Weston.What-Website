@@ -239,7 +239,7 @@ export function build() {
     return {
       file: f, slug: slugify(data.slug || f.replace(/\.md$/, '')), title: String(data.title), url: file, name, size, locked: isLocked,
       game: data.game ? String(data.game) : '', kind: data.kind ? String(data.kind) : '', date: data.date ? String(data.date).slice(0, 10) : '',
-      group: data.group ? String(data.group) : '', apart: data.apart ? String(data.apart) : '', label: data.label ? String(data.label) : '', emulator: data.emulator ? String(data.emulator) : '', platform: data.platform ? String(data.platform) : '', description: data.description ? String(data.description) : '', body, order: Number(data.order ?? 999),
+      group: data.group ? String(data.group) : '', folder: data.folder ? String(data.folder) : '', apart: data.apart ? String(data.apart) : '', label: data.label ? String(data.label) : '', emulator: data.emulator ? String(data.emulator) : '', platform: data.platform ? String(data.platform) : '', description: data.description ? String(data.description) : '', body, order: Number(data.order ?? 999),
     };
   }).sort((a, b) => a.order - b.order || b.date.localeCompare(a.date) || a.title.localeCompare(b.title))
     // Entries that share a "group:" become one window with several download buttons (the first one leads).

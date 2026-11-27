@@ -6,5 +6,7 @@ kind: PS3 save
 date: 2026-10-29
 order: 24
 platform: PlayStation 3
+locked: no
+folder: SAVE FILES
 ---
 Character "weston", level 22, Scourge of the Wastes. 56 hours 26 minutes played. Location: Mojave Wasteland.

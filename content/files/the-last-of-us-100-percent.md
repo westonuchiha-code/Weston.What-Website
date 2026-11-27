@@ -6,5 +6,7 @@ kind: PS3 save
 date: 2026-10-29
 order: 23
 platform: PlayStation 3
+locked: no
+folder: SAVE FILES
 ---
 Save Game 1. Complete, 100%. Played for 13 hours 5 minutes, 58 collectibles found.

@@ -445,18 +445,11 @@ export function aboutPage(ctx, a) {
   <summary class="folder__bar">${icon(ctx, iconName, 'win__icon')}<span class="folder__name">${name}</span></summary>
   <div class="folder__body">${inner}</div>
 </details>`;
-  const form = `<form class="win dl-lock" data-dl-form autocomplete="off">
-  <div class="win__bar">${icon(ctx, 'lock', 'win__icon')}<h2 class="win__title">PASSWORD</h2></div>
-  <div class="win__body">
-    <p><label for="dl-pw">Password </label><input id="dl-pw" class="dl-lock__input" type="password" name="pw" data-dl-pw autocomplete="off"></p>
-    <p class="dl-lock__status" data-dl-status role="status"></p>
-    <noscript><p>This needs JavaScript to unlock the files.</p></noscript>
-  </div>
-</form>`;
-  // Open downloads are listed first, as plain files. The password-protected save files sit below in a folder.
+  // Plain files are listed first. Entries with a "folder:" (the save files) sit below in a folder.
+  const looseFiles = a.downloads.filter((f) => !f.folder), folderFiles = a.downloads.filter((f) => f.folder);
   const folders = [
-    openFiles.length ? `<div class="files-list files-list--open">${openFiles.map(item).join('\n')}</div>` : '',
-    lockedFiles.length ? folder('SAVE FILES', 'lock', `${form}<div class="files-list">${lockedFiles.map(item).join('\n')}</div>`, false) : '',
+    looseFiles.length ? `<div class="files-list files-list--open">${looseFiles.map(item).join('\n')}</div>` : '',
+    ...[...new Set(folderFiles.map((f) => f.folder))].map((n) => folder(e(n), 'folder', `<div class="files-list">${folderFiles.filter((f) => f.folder === n).map(item).join('\n')}</div>`, false)),
   ].join('\n');
   const body = `${pageHead('FILES')}
 ${a.intro ? `<div class="prose files-intro">${a.intro}</div>` : ''}

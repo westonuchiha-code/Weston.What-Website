@@ -6,5 +6,7 @@ kind: PS3 save
 date: 2026-10-29
 order: 25
 platform: PlayStation 3
+locked: no
+folder: SAVE FILES
 ---
 Character "weston", level 24, Renegade of the Wastes. 66 hours 48 minutes played. Location: Mojave Wasteland.
